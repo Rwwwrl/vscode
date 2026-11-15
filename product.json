@@ -1,7 +1,7 @@
 {
 	"nameShort": "vsade",
 	"nameLong": "vsade",
-	"applicationName": "vsade",
+	"applicationName": "ade",
 	"dataFolderName": ".vsade",
 	"sharedDataFolderName": ".vsade-shared",
 	"win32MutexName": "vscodeoss",

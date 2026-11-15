@@ -18,7 +18,7 @@
 
 ## Current fork values
 
-`nameShort`/`nameLong`/`applicationName` `vsade`, `dataFolderName` `.vsade`, `sharedDataFolderName` `.vsade-shared`, `serverDataFolderName` `.vsade-server`, `serverApplicationName` `vsade-server`, `tunnelApplicationName` `vsade-tunnel`, `urlProtocol` `vsade`, `darwinBundleIdentifier` `dev.vsade.app`, `reportIssueUrl` on `Rwwwrl/vscode`, and an Open VSX `extensionsGallery`. From sources the app shows as `vsade Dev` with extensions in `~/.vsade-dev/extensions`. Fork code must read these through `IProductService`, never hard-code them.
+`nameShort`/`nameLong` `vsade`, `applicationName` `ade`, `dataFolderName` `.vsade`, `sharedDataFolderName` `.vsade-shared`, `serverDataFolderName` `.vsade-server`, `serverApplicationName` `vsade-server`, `tunnelApplicationName` `vsade-tunnel`, `urlProtocol` `vsade`, `darwinBundleIdentifier` `dev.vsade.app`, `reportIssueUrl` on `Rwwwrl/vscode`, and an Open VSX `extensionsGallery`. From sources the app shows as `vsade Dev` with extensions in `~/.vsade-dev/extensions`. Fork code must read these through `IProductService`, never hard-code them.
 
 ## Safe to customize
 
