@@ -12,7 +12,7 @@ This checkout is a personal fork: branch `sosov-fork` (default) carries the fork
 1. **Fork code lives in fork-owned files.** A file is *fork-owned* if it does not exist on `main`; everything that exists on `main` is *upstream-owned*. Put new code only under the fork-owned roots below.
 2. **Every hunk in an upstream-owned file is explicitly marked** with a `FORK:` marker comment (exact syntax below). No marker, no merge.
 3. **Before opening a PR, run `just fork-patches`** (`scripts/vsade/fork-patches.sh [base-ref]`, base defaults to `main`, uncommitted changes included). It lists every upstream-owned file the branch modifies and fails unless every `-U0` hunk of that file adds a line containing `FORK:`, or the file is in the ledger `scripts/vsade/fork-patches.txt`. Deleting or renaming an upstream file always needs a ledger line. Fix it, do not bypass it.
-4. **The PR body lists every upstream-owned file touched, one line each with the reason**, in the `## Upstream files touched` section the `pull-request` skill prescribes. Zero is the goal; each entry must be justified by the ladder below.
+4. **The PR body lists every upstream-owned file touched, one line each with the reason**, in the `## Upstream files touched` section the `create-pr` skill prescribes. Zero is the goal; each entry must be justified by the ladder below.
 
 Fork-owned roots (create code only here):
 

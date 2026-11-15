@@ -30,7 +30,7 @@ Load the `fork-feature` skill **before writing any code** for a feature or behav
 | `main` | Exact mirror of `upstream/main`. Never commit to it. |
 | `sosov-fork` | The fork's trunk and default branch. Never commit or push to it directly. |
 
-- Work happens on a branch cut from `sosov-fork` (`git-branch` skill) and lands through a pull request that is **squash-merged** (`pull-request` skill).
+- Work happens on a branch cut from `sosov-fork` (`git-branch` skill) and lands through a pull request that is **squash-merged** (`create-pr` skill, also `/create-pr`).
 - `gh` resolves a fork to its parent when it has to guess. Pass `--repo Rwwwrl/vscode --base sosov-fork` on every `gh pr` command.
 - Upstream is brought in only by the `sync-upstream` skill, as a real merge commit, and only when asked.
 - Commit subjects and pull request titles use `[scope] type context past-tense-description` (`commit` skill). Commit only what the user staged.
@@ -68,7 +68,7 @@ Fork skills live in `.agents/skills/` (`.claude/skills` is a symlink to it). Use
 | `launch` | Driving a running dev build for UI verification and debugging (upstream-owned skill; do not edit it). |
 | `git-branch` | Naming and creating a branch from `sosov-fork`. |
 | `commit` | Committing staged changes in the fork's subject format. |
-| `pull-request` | Opening and squash-merging pull requests in the fork. |
+| `create-pr` | Pushing the current branch and opening its pull request with `gh` (`/create-pr`). |
 | `sync-upstream` | Merging the latest upstream into `sosov-fork`. |
 
 ## Product Identity

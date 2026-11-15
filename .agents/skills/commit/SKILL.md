@@ -63,4 +63,4 @@ git commit -m "<subject>"
 
 Respect the user's signing configuration and never pass `--no-verify`. If the commit fails or a hook modifies files, re-run `git status --short` and `git diff --cached`; stop without staging hook edits or retrying automatically.
 
-After success, verify the new `HEAD`, report the subject, and mention any remaining unstaged or untracked files. Never amend unless explicitly requested in the current turn. Never push to `sosov-fork` or `main`; landing goes through the `pull-request` skill.
+After success, verify the new `HEAD`, report the subject, and mention any remaining unstaged or untracked files. Never amend unless explicitly requested in the current turn. Never push to `sosov-fork` or `main`; landing goes through the `create-pr` skill.
