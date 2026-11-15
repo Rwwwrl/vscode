@@ -1,0 +1,1 @@
+product.json	vsade identity (names, data folders, bundle id, url protocol, issue url) and the Open VSX extensionsGallery
