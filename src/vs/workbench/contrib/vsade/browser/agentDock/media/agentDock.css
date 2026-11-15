@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The dock's editor part covers the workbench part its view is in, title and all, so that its tabs line up with
+ * those of the editor area.
+ *
+ * Neither the part nor the dock opens a stacking context: the window's webviews, such as Claude Code's, show above
+ * the dock, and the drop overlay of a dragged tab above them, as in the editor area.
+ */
+.monaco-workbench .part.vsade-agent-dock-host {
+	position: relative;
+}
+
+.monaco-workbench .part.vsade-agent-dock-host > .vsade-agent-dock-part {
+	display: none;
+	position: absolute;
+	inset: 0;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.vsade-agent-dock-host > .vsade-agent-dock-part.visible {
+	display: block;
+}
+
+/* What the dock covers hides, as some of it would show above the dock otherwise */
+.monaco-workbench .part.vsade-agent-dock-host:has(> .vsade-agent-dock-part.visible) > :not(.vsade-agent-dock-part) {
+	visibility: hidden;
+}

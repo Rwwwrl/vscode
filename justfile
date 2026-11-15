@@ -16,13 +16,18 @@ build-dev:
     pnpm run build-fast
     node build/lib/preLaunch.ts
 
-# Package the minified, locally signed app and its .dmg into .build/vsade/
+# Package the minified, locally signed app and its .dmg into .build/vsade/, then install it (`just install`)
 [group('build')]
-build:
+build: && install
     #!/usr/bin/env bash
     set -euo pipefail
     arch="$(node -p process.arch)"
     name="$(node -p "require('./product.json').nameLong")"
+    # The install that follows refuses to replace a running app: say so now, not after the build.
+    if pgrep -f "/Applications/$name.app/Contents/MacOS/" > /dev/null; then
+        echo "Quit $name before building: the build installs it into /Applications" >&2
+        exit 1
+    fi
     version="$(node -p "require('./package.json').version")"
     out=.build/vsade
     started=$SECONDS
@@ -58,7 +63,7 @@ clean:
 run-dev *args: build-dev
     VSCODE_SKIP_PRELAUNCH=1 ./scripts/code.sh "$@"
 
-# Copy the packaged app from `just build` into /Applications and link its command line launcher into ~/.local/bin
+# Copy the packaged app from `just build` (which runs this) into /Applications and link its command line launcher into ~/.local/bin
 [group('run')]
 install:
     #!/usr/bin/env bash

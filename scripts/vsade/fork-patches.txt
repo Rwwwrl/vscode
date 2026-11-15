@@ -1,1 +1,2 @@
 product.json	vsade identity (names, data folders, bundle id, url protocol, issue url) and the Open VSX extensionsGallery
+build/lib/i18n.resources.json	vsade fork contributions (vs/workbench/contrib/vsade) need a localization entry; JSON cannot hold a FORK: marker
