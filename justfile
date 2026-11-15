@@ -58,17 +58,27 @@ clean:
 run-dev *args: build-dev
     VSCODE_SKIP_PRELAUNCH=1 ./scripts/code.sh "$@"
 
-# Copy the packaged app from `just build` into /Applications
+# Copy the packaged app from `just build` into /Applications and link its command line launcher into ~/.local/bin
 [group('run')]
 install:
     #!/usr/bin/env bash
     set -euo pipefail
     name="$(node -p "require('./product.json').nameLong")"
     app=".build/vsade/VSCode-darwin-$(node -p process.arch)/$name.app"
+    cli="$(node -p "require('./product.json').applicationName")"
+    bin="${VSADE_BIN_DIR:-$HOME/.local/bin}"
     test -d "$app" || { echo "Run 'just build' first: $app is missing" >&2; exit 1; }
+    if pgrep -f "/Applications/$name.app/Contents/MacOS/" > /dev/null; then
+        echo "Quit $name before installing a new build" >&2
+        exit 1
+    fi
     rm -rf "/Applications/$name.app"
     ditto "$app" "/Applications/$name.app"
-    echo "Installed /Applications/$name.app"
+    # The launcher script resolves symlinks back to the app, like upstream's "Install 'code' command in PATH".
+    mkdir -p "$bin"
+    ln -sf "/Applications/$name.app/Contents/Resources/app/bin/code" "$bin/$cli"
+    echo "Installed /Applications/$name.app and the '$cli' command in $bin"
+    case ":$PATH:" in *":$bin:"*) ;; *) echo "Note: $bin is not on PATH; add it to use '$cli .'" ;; esac
 
 # Sync the vsade profile (scripts/vsade/sync-profile.sh)
 [group('run')]

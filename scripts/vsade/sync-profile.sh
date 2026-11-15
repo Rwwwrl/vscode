@@ -10,6 +10,13 @@
 # Override the source with VSADE_SOURCE_USER_DIR / VSADE_SOURCE_EXTENSIONS_DIR.
 # Existing target files are kept as <name>.bak-<timestamp>; extensions that only
 # exist in the target are left alone.
+#
+# Settings that must differ from the stock install go into
+# ~/<dataFolderName>/settings.overrides.json, a JSON object of setting ids and
+# values that is applied on top of the copied settings.json on every sync.
+#
+# VSADE_SYNC_EXCLUDE_EXTENSIONS lists extension ids (space separated) that are not
+# copied. The default leaves out extensions that only run in Microsoft's builds.
 
 set -euo pipefail
 
@@ -26,7 +33,31 @@ DATA_FOLDER="$(node -p "require('$ROOT/product.json').dataFolderName")"
 
 SOURCE_USER_DIR="${VSADE_SOURCE_USER_DIR:-$HOME/Library/Application Support/Code/User}"
 SOURCE_EXTENSIONS_DIR="${VSADE_SOURCE_EXTENSIONS_DIR:-$HOME/.vscode/extensions}"
+OVERRIDES_FILE="$HOME/$DATA_FOLDER/settings.overrides.json"
+EXCLUDED_EXTENSIONS="${VSADE_SYNC_EXCLUDE_EXTENSIONS-ms-python.vscode-pylance}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+# Prints the path of the settings.json to install: the source one with the overrides applied.
+function prepare_settings() {
+	local prepared="$WORK_DIR/settings.json"
+	cp -p "$SOURCE_USER_DIR/settings.json" "$prepared"
+	if [[ -f "$OVERRIDES_FILE" ]]; then
+		node - "$ROOT" "$OVERRIDES_FILE" "$prepared" <<'EOF'
+const fs = require('fs');
+const [root, overridesFile, settingsFile] = process.argv.slice(2);
+// settings.json is JSON with comments, so it is edited in place rather than re-serialized.
+const { modify, applyEdits } = require(require.resolve('jsonc-parser', { paths: [`${root}/build`] }));
+let text = fs.readFileSync(settingsFile, 'utf8');
+for (const [key, value] of Object.entries(JSON.parse(fs.readFileSync(overridesFile, 'utf8')))) {
+	text = applyEdits(text, modify(text, [key], value, { formattingOptions: { insertSpaces: true, tabSize: 2 } }));
+}
+fs.writeFileSync(settingsFile, text);
+EOF
+	fi
+	echo "$prepared"
+}
 
 function copy_file() {
 	local source="$1" target="$2"
@@ -47,7 +78,12 @@ function sync_into() {
 	echo "==> $label"
 	echo "  user data:  $user_dir"
 	mkdir -p "$user_dir"
-	copy_file "$SOURCE_USER_DIR/settings.json" "$user_dir/settings.json"
+	if [[ -f "$SOURCE_USER_DIR/settings.json" ]]; then
+		copy_file "$(prepare_settings)" "$user_dir/settings.json"
+		if [[ -f "$OVERRIDES_FILE" ]]; then
+			echo "    with overrides from $OVERRIDES_FILE"
+		fi
+	fi
 	copy_file "$SOURCE_USER_DIR/keybindings.json" "$user_dir/keybindings.json"
 	if [[ -d "$SOURCE_USER_DIR/snippets" ]]; then
 		mkdir -p "$user_dir/snippets"
@@ -61,14 +97,19 @@ function sync_into() {
 		return
 	fi
 	mkdir -p "$extensions_dir"
-	rsync -a --exclude 'extensions.json' --exclude '.obsolete' --exclude '.init-default-profile-extensions' \
-		"$SOURCE_EXTENSIONS_DIR/" "$extensions_dir/"
+	local excludes=(--exclude 'extensions.json' --exclude '.obsolete' --exclude '.init-default-profile-extensions')
+	local id
+	for id in $EXCLUDED_EXTENSIONS; do
+		excludes+=(--exclude "$id-*")
+	done
+	rsync -a "${excludes[@]}" "$SOURCE_EXTENSIONS_DIR/" "$extensions_dir/"
 
 	# The manifest stores absolute locations, so it is rewritten rather than copied.
-	node - "$SOURCE_EXTENSIONS_DIR/extensions.json" "$extensions_dir" <<'EOF'
+	node - "$SOURCE_EXTENSIONS_DIR/extensions.json" "$extensions_dir" "$EXCLUDED_EXTENSIONS" <<'EOF'
 const fs = require('fs');
 const path = require('path');
-const [sourceManifest, targetDir] = process.argv.slice(2);
+const [sourceManifest, targetDir, excluded] = process.argv.slice(2);
+const excludedIds = new Set(excluded.toLowerCase().split(/\s+/).filter(Boolean));
 const targetManifest = path.join(targetDir, 'extensions.json');
 const key = e => e.identifier.id.toLowerCase();
 const merged = new Map();
@@ -80,7 +121,7 @@ if (fs.existsSync(targetManifest)) {
 let count = 0;
 for (const e of JSON.parse(fs.readFileSync(sourceManifest, 'utf8'))) {
 	const folder = e.relativeLocation ?? path.basename(e.location.path);
-	if (!fs.existsSync(path.join(targetDir, folder))) {
+	if (excludedIds.has(key(e)) || !fs.existsSync(path.join(targetDir, folder))) {
 		continue;
 	}
 	merged.set(key(e), { ...e, location: { ...e.location, path: path.join(targetDir, folder) }, relativeLocation: folder });
