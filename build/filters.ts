@@ -83,6 +83,8 @@ export const indentationFilter = Object.freeze<string[]>([
 	'**',
 
 	// except specific files
+	// FORK: the vsade justfile is indented with spaces and cannot hold the copyright header
+	'!justfile',
 	'!**/ThirdPartyNotices.txt',
 	'!**/ThirdPartyNotices.cli.txt',
 	'!**/LICENSE.{txt,rtf}',

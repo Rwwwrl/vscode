@@ -92,7 +92,8 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
+		// FORK: vsade ships the Open VSX gallery in product.json, so only a Microsoft Marketplace gallery is rejected
+		if (/visualstudio\.com/.test(product.extensionsGallery?.serviceUrl ?? '')) {
 			console.error(`product.json: Contains 'extensionsGallery'`);
 			errorCount++;
 		}
