@@ -44,8 +44,8 @@ Dependencies are installed with `pnpm install` (never npm or yarn). The `justfil
 | --- | --- |
 | `just build-dev` | Build the app from sources to try a finished feature. Incremental after the first run. |
 | `just run-dev [args]` | Run that build (`scripts/code.sh`); rebuilds only what changed. |
-| `just build` | Package the minified app, signed with a local self-signed certificate, and the `.dmg` into `.build/vsade/`. Slow; run it only when asked for a release build. |
-| `just install` | Copy the packaged app into `/Applications` and link the `ade` command into `~/.local/bin`, so `ade .` works like `code .`. User-invoked only. |
+| `just build` | Package the minified app, signed with a local self-signed certificate, and the `.dmg` into `.build/vsade/`, then run `just install`. Fails up front while the installed app runs. Slow; run it only when asked for a release build. |
+| `just install` | Copy the packaged app into `/Applications` and link the `ade` command into `~/.local/bin`, so `ade .` works like `code .`. `just build` runs it; on its own it reinstalls the last build. User-invoked only. |
 | `just sync-profile [app\|dev\|all]` | Copy settings, keybindings, snippets and extensions from the stock VS Code install into the vsade profiles, then apply `~/.vsade/settings.overrides.json` on top. User-invoked only. |
 | `just fork-patches` | List upstream-owned files the fork modifies; fail on changes that are not highlighted. |
 | `just lint <files>` | oxlint on the given files. |

@@ -295,6 +295,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/vsade",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/watermark",
 			"project": "vscode-workbench"
 		},

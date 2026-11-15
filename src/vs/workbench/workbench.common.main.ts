@@ -497,3 +497,6 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 import './contrib/opener/browser/opener.contribution.js';
 
 //#endregion
+
+// FORK: vsade fork-owned contributions live in contrib/vsade
+import './contrib/vsade/browser/vsade.contribution.js';
