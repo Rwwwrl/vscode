@@ -16,7 +16,7 @@ build-dev:
     pnpm run build-fast
     node build/lib/preLaunch.ts
 
-# Package the minified, ad-hoc signed app and its .dmg into .build/vsade/
+# Package the minified, locally signed app and its .dmg into .build/vsade/
 [group('build')]
 build:
     #!/usr/bin/env bash
@@ -34,10 +34,10 @@ build:
     mv "../VSCode-darwin-$arch" "$out/"
     app="$out/VSCode-darwin-$arch/$name.app"
     # Packaging rewrites Info.plist and renames Electron's linker-signed bundle, so its seal no longer
-    # verifies. It still launches locally, but re-sign it ad hoc (no Developer ID) so the signature is
-    # valid. The ad-hoc requirement is the cdhash, which differs on every build.
-    codesign --force --deep --sign - "$app"
-    codesign --verify --deep --strict "$app"
+    # verifies. Re-sign it with the local self-signed certificate (created on first use, not a
+    # Developer ID): unlike an ad-hoc signature it is the same on every build, so macOS remembers
+    # keychain permissions granted to the app.
+    ./scripts/vsade/sign-app.sh "$app"
     dmg="$out/$name-$version-darwin-$arch.dmg"
     # On first use, installs dmgbuild the way build/darwin/create-dmg.ts does: a clone at the pinned
     # commit with a venv in the git-ignored build/darwin/.dmgbuild (needs python3 >= 3.10).
