@@ -1,2 +1,3 @@
 product.json	vsade identity (names, data folders, bundle id, url protocol, issue url) and the Open VSX extensionsGallery
 build/lib/i18n.resources.json	vsade fork contributions (vs/workbench/contrib/vsade) need a localization entry; JSON cannot hold a FORK: marker
+resources/darwin/code.icns	vsade app icon: the VS Code logo on a black background instead of the Code - OSS icon; binary, cannot hold a FORK: marker
