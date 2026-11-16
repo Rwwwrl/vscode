@@ -14,6 +14,8 @@ import type { WebviewApi } from 'vscode-webview';
 const READY_MESSAGE = 'vsade.agentDock.previewReady';
 const DRAG_MESSAGE = 'vsade.agentDock.selectionDrag';
 const BADGE_MESSAGE = 'vsade.agentDock.selectionBadge';
+const SELECTION_REQUEST_MESSAGE = 'vsade.agentDock.selectionRequest';
+const SELECTION_MESSAGE = 'vsade.agentDock.selection';
 
 /** The source lines, from 0, that a selection of the preview spans, by the blocks it touches. */
 interface SelectedBlocks {
@@ -63,7 +65,8 @@ function getNextBlockLine(blocks: readonly Element[], endBlockLine: number): num
 
 /**
  * Shows the badge next to a selection made in the preview once the mouse is up, and drags it with the pointer captured,
- * posting each step of the drag to the workbench. It shows only once the workbench says so.
+ * posting each step of the drag to the workbench. It shows only once the workbench says so. Also tells the workbench
+ * the selected blocks when it asks.
  */
 export function startVsadeSelectionBadge(vscode: WebviewApi<unknown>, getSource: () => string): void {
 	let enabled = false;
@@ -135,11 +138,16 @@ export function startVsadeSelectionBadge(vscode: WebviewApi<unknown>, getSource:
 	};
 
 	window.addEventListener('message', event => {
-		const data = event.data as { type?: unknown; enabled?: unknown; label?: unknown } | undefined;
+		const data = event.data as { type?: unknown; enabled?: unknown; label?: unknown; requestId?: unknown } | undefined;
 		if (data?.type === BADGE_MESSAGE) {
 			enabled = data.enabled === true;
 			label.textContent = typeof data.label === 'string' ? data.label : '';
 			update();
+		} else if (data?.type === SELECTION_REQUEST_MESSAGE) {
+			// The selection for the keyboard, such as for `vsade.agentDock.insertSelection`, also while the badge is off
+			const selection = document.getSelection();
+			const blocks = selection && !selection.isCollapsed && selection.rangeCount ? getSelectedBlocks(selection.getRangeAt(0)) : undefined;
+			vscode.postMessage({ type: SELECTION_MESSAGE, requestId: data.requestId, ...(blocks ? { source: getSource(), ...blocks } : {}) });
 		}
 	});
 

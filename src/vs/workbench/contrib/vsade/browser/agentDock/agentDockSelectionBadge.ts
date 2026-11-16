@@ -18,7 +18,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { AgentDockSelectionBadgeMode, AgentDockSettingId } from '../../common/agentDock/agentDock.js';
-import { AGENT_DOCK_SELECTION_DATA_TRANSFER, createAgentDockSelection, normalizeAgentDockDropResources, serializeAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import { AGENT_DOCK_SELECTION_DATA_TRANSFER, createAgentDockSelection, IAgentDockSelection, normalizeAgentDockDropResources, serializeAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
 import './media/agentDockSelectionBadge.css';
 
 /** How long a selection stays as it is before the badge moves to it: it does not follow each step of the keyboard. */
@@ -26,6 +26,20 @@ const UPDATE_DELAY = 150;
 
 /** The width of the badge, as far as placing it goes, before it rendered once. */
 const ESTIMATED_WIDTH = 140;
+
+/**
+ * The selection of `editor` as the dock takes it, from its badge or from the keyboard: nothing when nothing is selected,
+ * or when the editor is not of a file, nor of a read-only version of one.
+ */
+export function getAgentDockEditorSelection(editor: ICodeEditor): IAgentDockSelection | undefined {
+	const model = editor.getModel();
+	const selection = editor.getSelection();
+	if (!model || !selection || selection.isEmpty()) {
+		return undefined;
+	}
+
+	return createAgentDockSelection(model.uri, selection, model.getValueInRange(selection), lineNumber => model.getLineContent(lineNumber));
+}
 
 /**
  * A badge next to the selection of an editor of a file, which drags a reference to the selected lines onto a terminal or
@@ -70,7 +84,7 @@ export class AgentDockSelectionBadge extends Disposable implements IEditorContri
 		this.mode = this.readMode();
 
 		this.domNode.draggable = true;
-		this.domNode.setAttribute('aria-hidden', 'true'); // for the mouse only: the keyboard has Claude Code's own command
+		this.domNode.setAttribute('aria-hidden', 'true'); // for the mouse only: the keyboard has `vsade.agentDock.insertSelection`
 
 		// The editor sets the display of the widget's own element: the badge lays out inside it
 		append(this.badge, $(ThemeIcon.asCSSSelector(Codicon.mention)));
@@ -261,11 +275,7 @@ export class AgentDockSelectionBadge extends Disposable implements IEditorContri
 	//#region Drag
 
 	private onDragStart(e: DragEvent): void {
-		const model = this.editor.getModel();
-		const selection = this.editor.getSelection();
-		const dragged = model && selection && !selection.isEmpty()
-			? createAgentDockSelection(model.uri, selection, model.getValueInRange(selection), lineNumber => model.getLineContent(lineNumber))
-			: undefined;
+		const dragged = getAgentDockEditorSelection(this.editor);
 		if (!e.dataTransfer || !dragged) {
 			e.preventDefault();
 			return;
