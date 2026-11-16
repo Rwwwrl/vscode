@@ -8,16 +8,16 @@ import { CodeWindow } from '../../../../../base/browser/window.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { AgentDockSelectionBadgeMode, AgentDockSettingId } from '../../common/agentDock/agentDock.js';
-import { createAgentDockSelection, IAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
-import { AGENT_DOCK_PREVIEW_BADGE_MESSAGE, AgentDockPreviewDragMessage, getAgentDockPreviewLineRange, MARKDOWN_PREVIEW_VIEW_TYPES, parseAgentDockPreviewMessage } from '../../common/agentDock/agentDockPreview.js';
+import { IAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import { AGENT_DOCK_PREVIEW_BADGE_MESSAGE, AgentDockPreviewDragMessage, parseAgentDockPreviewMessage } from '../../common/agentDock/agentDockPreview.js';
 import type { AgentDockDropController, IAgentDockDropTarget } from './agentDockDropController.js';
+import { isAgentDockMarkdownPreview, resolveAgentDockPreviewSelection } from './agentDockPreviewSelection.js';
 
 /** A drag of the badge of a Markdown preview that is under way. */
 interface IPreviewDrag {
@@ -67,7 +67,7 @@ export class AgentDockPreviewDrag extends Disposable {
 	/** Listens to the messages of each Markdown preview that shows, until it closes. */
 	private trackPreviews(): void {
 		for (const editor of this.editorService.visibleEditors) {
-			if (!(editor instanceof WebviewInput) || this.previews.has(editor) || !MARKDOWN_PREVIEW_VIEW_TYPES.includes(editor.viewType)) {
+			if (!isAgentDockMarkdownPreview(editor) || this.previews.has(editor)) {
 				continue;
 			}
 
@@ -104,7 +104,7 @@ export class AgentDockPreviewDrag extends Disposable {
 		if (message.phase === 'start') {
 			this.endDrag();
 
-			const selection = this.resolveSelection(message);
+			const selection = resolveAgentDockPreviewSelection(this.modelService, message);
 			if (selection) {
 				this.drag = { preview, selection, target: undefined };
 				this.ghost.textContent = this.getGhostLabel(selection);
@@ -131,29 +131,6 @@ export class AgentDockPreviewDrag extends Disposable {
 		} else {
 			this.endDrag();
 		}
-	}
-
-	/** The selection of whole lines of the Markdown file that the blocks of a selection in its preview span. */
-	private resolveSelection(message: Extract<AgentDockPreviewDragMessage, { phase: 'start' }>): IAgentDockSelection | undefined {
-		let source: URI;
-		try {
-			source = URI.parse(message.source);
-		} catch {
-			return undefined;
-		}
-
-		const model = this.modelService.getModel(source);
-		if (!model) {
-			return undefined;
-		}
-
-		const range = getAgentDockPreviewLineRange(message, model.getLineCount(), lineNumber => model.getLineContent(lineNumber));
-		if (!range) {
-			return undefined;
-		}
-
-		const fullRange = { ...range, startColumn: 1, endColumn: model.getLineMaxColumn(range.endLineNumber) };
-		return createAgentDockSelection(source, fullRange, model.getValueInRange(fullRange), lineNumber => model.getLineContent(lineNumber));
 	}
 
 	/** Places the drag at `x`, `y` in the viewport of the preview it comes from. */

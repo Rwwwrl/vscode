@@ -9,11 +9,14 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
@@ -21,13 +24,18 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../../common/views.js';
 import { editorGroupToColumn } from '../../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
-import { AgentDockSelectionBadge } from './agentDockSelectionBadge.js';
+import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockAvailableContext, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
+import { IAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import { AgentDockInsertService, IAgentDockInsertService } from './agentDockInsertService.js';
+import { AgentDockMarkdownPreviewFocusTracker, isAgentDockMarkdownPreview, requestAgentDockPreviewSelection } from './agentDockPreviewSelection.js';
+import { AgentDockSelectionBadge, getAgentDockEditorSelection } from './agentDockSelectionBadge.js';
 import { AgentDockService, IAgentDockService } from './agentDockService.js';
 import { AgentDockViewPane } from './agentDockView.js';
 
 registerSingleton(IAgentDockService, AgentDockService, InstantiationType.Delayed);
+registerSingleton(IAgentDockInsertService, AgentDockInsertService, InstantiationType.Delayed);
 
 // The badge next to a selection, which drags a reference to it into the dock
 registerEditorContribution(AgentDockSelectionBadge.ID, AgentDockSelectionBadge, EditorContributionInstantiation.AfterFirstRender);
@@ -189,25 +197,77 @@ class NewClaudeCodeInAgentDockAction extends Action2 {
 	}
 }
 
+/**
+ * Inserts a reference to the selected lines into the tab of the dock that was active last, a terminal or Claude Code, as a
+ * drag of the selection's badge onto it does: the lines of the focused editor, or the source lines of the blocks
+ * selected in a focused Markdown preview; else of the active one.
+ */
+class InsertSelectionIntoAgentDockAction extends Action2 {
+	constructor() {
+		super({
+			id: AgentDockCommandId.InsertSelection,
+			title: localize2('agentDock.insertSelection', "Insert Selection into Agent Dock"),
+			category: Categories.View,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const agentDockInsertService = accessor.get(IAgentDockInsertService);
+		const notificationService = accessor.get(INotificationService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editorService = accessor.get(IEditorService);
+		const modelService = accessor.get(IModelService);
+
+		const selection = await this.resolveSelection(codeEditorService, editorService, modelService);
+		if (selection === 'nothing') {
+			notificationService.info(localize('agentDock.insertSelectionNothing', "Select lines of a file, or blocks of a Markdown preview, to insert a reference to them into the Agent Dock."));
+			return;
+		}
+
+		await agentDockInsertService.insertIntoLastActive({ kind: 'selection', selection });
+	}
+
+	private async resolveSelection(codeEditorService: ICodeEditorService, editorService: IEditorService, modelService: IModelService): Promise<IAgentDockSelection | 'nothing'> {
+		const codeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
+		if (codeEditor && !(codeEditor.getSelection()?.isEmpty() ?? true)) {
+			return getAgentDockEditorSelection(codeEditor) ?? 'nothing';
+		}
+
+		const preview = editorService.visibleEditors.find(editor => isAgentDockMarkdownPreview(editor) && editor.webview.isFocused) ?? editorService.activeEditor;
+		if (isAgentDockMarkdownPreview(preview)) {
+			return await requestAgentDockPreviewSelection(preview, modelService) ?? 'nothing';
+		}
+
+		return 'nothing';
+	}
+}
+
 registerAction2(ToggleAgentDockAction);
 registerAction2(NewTerminalInAgentDockAction);
 registerAction2(NewClaudeCodeInAgentDockAction);
+registerAction2(InsertSelectionIntoAgentDockAction);
 
 //#endregion
 
 /**
  * Restores the dock once the workbench restored, also while it is hidden, so that its terminals reconnect to their
- * processes in time, and so that agent panels move into the dock as they open.
+ * processes in time, and so that agent panels move into the dock as they open. Tells keybindings the dock exists.
  */
 class AgentDockContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'vsade.agentDock';
 
-	constructor(@IAgentDockService agentDockService: IAgentDockService) {
+	constructor(
+		@IAgentDockService agentDockService: IAgentDockService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
 		super();
 
+		AgentDockAvailableContext.bindTo(contextKeyService).set(true);
 		agentDockService.restore();
 	}
 }
 
 registerWorkbenchContribution2(AgentDockContribution.ID, AgentDockContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentDockMarkdownPreviewFocusTracker.ID, AgentDockMarkdownPreviewFocusTracker, WorkbenchPhase.AfterRestored);
