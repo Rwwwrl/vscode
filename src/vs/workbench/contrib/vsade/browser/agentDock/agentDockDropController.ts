@@ -12,24 +12,20 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CodeDataTransfers, containsDragType, extractEditorsDropData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, registerInputDropTarget } from '../../../../browser/dnd.js';
 import { IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { EditorResourceAccessor, GroupIdentifier, SideBySideEditor } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { TerminalDataTransfers } from '../../../terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../terminal/browser/terminalEditorInput.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
-import { AgentDockSettingId, AgentDockTerminalSelectionDrop } from '../../common/agentDock/agentDock.js';
-import { AGENT_DOCK_SELECTION_DATA_TRANSFER, AgentDockDropTargetKind, createClaudeCodeInsertAtMentionMessage, getAgentDockDropTargetKind, getAgentDockMention, getAgentDockRelativePath, getAgentDockSelectionMention, getAgentDockTerminalPath, IAgentDockSelection, isAgentDockFileDrag, locateAgentDockSelection, normalizeAgentDockDropResources, parseAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import { AGENT_DOCK_SELECTION_DATA_TRANSFER, AgentDockDropTargetKind, getAgentDockDropTargetKind, IAgentDockSelection, isAgentDockFileDrag, normalizeAgentDockDropResources, parseAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import { AgentDockInsertPayload, IAgentDockInsertService } from './agentDockInsertService.js';
 import { AgentDockPreviewDrag } from './agentDockPreviewDrag.js';
 import { describeAgentDockEditor, IAgentDockService } from './agentDockService.js';
 
@@ -40,11 +36,6 @@ export interface IAgentDockDropTarget {
 	/** Whether the drag is over the terminal itself, whose own handling of drops the dock takes over. */
 	readonly overTerminal: boolean;
 }
-
-/** What a drop into a tab of the dock brings: the files of a drag, or the selection of an editor, from its badge. */
-type AgentDockDropPayload =
-	| { readonly kind: 'resources'; readonly resources: readonly URI[] }
-	| { readonly kind: 'selection'; readonly selection: IAgentDockSelection };
 
 /**
  * How long the drop feedback stays without a drag event over the dock: a drag from another application, which can leave
@@ -76,12 +67,8 @@ export class AgentDockDropController extends Disposable {
 		private readonly part: IContentPart,
 		private readonly targetWindow: CodeWindow,
 		@IAgentDockService private readonly agentDockService: IAgentDockService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IAgentDockInsertService private readonly agentDockInsertService: IAgentDockInsertService,
 		@IHostService private readonly hostService: IHostService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -252,20 +239,17 @@ export class AgentDockDropController extends Disposable {
 
 		// The data of a drop can only be read while it is handled
 		const payload = this.resolvePayload(e);
-		if (payload && editor) {
-			this.insert(targetWindow, target, editor, payload).catch(onUnexpectedError);
+		if (payload) {
+			this.insert(targetWindow, target, payload).catch(onUnexpectedError);
 		}
 	}
 
 	/** Inserts a reference to `selection` into the tab of `target`, as a drop of the selection on it does. */
 	async dropSelection(target: IAgentDockDropTarget, selection: IAgentDockSelection): Promise<void> {
-		const editor = target.group.activeEditor;
-		if (editor) {
-			await this.insert(this.targetWindow, target, editor, { kind: 'selection', selection });
-		}
+		await this.insert(this.targetWindow, target, { kind: 'selection', selection });
 	}
 
-	private resolvePayload(e: DragEvent): AgentDockDropPayload | undefined {
+	private resolvePayload(e: DragEvent): AgentDockInsertPayload | undefined {
 		const selectionData = e.dataTransfer?.getData(AGENT_DOCK_SELECTION_DATA_TRANSFER);
 		if (selectionData) {
 			const selection = parseAgentDockSelection(selectionData);
@@ -326,142 +310,12 @@ export class AgentDockDropController extends Disposable {
 		return resource ? [resource] : [];
 	}
 
-	private async insert(targetWindow: CodeWindow, target: IAgentDockDropTarget, editor: EditorInput, payload: AgentDockDropPayload): Promise<void> {
+	private async insert(targetWindow: CodeWindow, target: IAgentDockDropTarget, payload: AgentDockInsertPayload): Promise<void> {
 		if (!targetWindow.document.hasFocus()) {
 			await this.hostService.focus(targetWindow); // a drop from another application
 		}
 
-		this.editorGroupsService.activateGroup(target.group);
-		target.group.focus();
-
-		if (target.kind === AgentDockDropTargetKind.Terminal && editor instanceof TerminalEditorInput) {
-			if (payload.kind === 'selection') {
-				await this.insertSelectionIntoTerminal(editor, payload.selection);
-			} else {
-				await this.insertIntoTerminal(editor, payload.resources);
-			}
-		} else if (target.kind === AgentDockDropTargetKind.ClaudeCode && editor instanceof WebviewInput) {
-			if (payload.kind === 'selection') {
-				await this.insertSelectionIntoClaudeCode(editor, payload.selection);
-			} else {
-				await this.insertIntoClaudeCode(editor, payload.resources);
-			}
-		}
-	}
-
-	/** Pastes the paths, as a drop of files into a terminal of the system does, followed by a space to type on. */
-	private async insertIntoTerminal(editor: TerminalEditorInput, resources: readonly URI[]): Promise<void> {
-		const instance = editor.terminalInstance;
-		if (!instance) {
-			return;
-		}
-
-		const paths = await Promise.all(resources.map(resource => instance.preparePathForShell(resource.fsPath)));
-		await instance.sendText(`${paths.join(' ')} `, false, true);
-	}
-
-	/**
-	 * Types an @-mention of the selected lines for the command line of Claude Code, followed by a space to type on, or the
-	 * selected text itself, as `vsade.agentDock.terminalSelectionDrop` says.
-	 */
-	private async insertSelectionIntoTerminal(editor: TerminalEditorInput, selection: IAgentDockSelection): Promise<void> {
-		const instance = editor.terminalInstance;
-		if (!instance) {
-			return;
-		}
-
-		if (this.configurationService.getValue<string>(AgentDockSettingId.TerminalSelectionDrop) === AgentDockTerminalSelectionDrop.Text) {
-			await instance.sendText(selection.text, false, true);
-			return;
-		}
-
-		const range = await this.locateSelection(selection);
-		if (!range) {
-			return;
-		}
-
-		const path = getAgentDockTerminalPath(selection.resource, await instance.getCwdResource());
-		const mention = getAgentDockSelectionMention(path, range, AgentDockDropTargetKind.Terminal);
-		if (!mention) {
-			this.warnCannotMention(path);
-			return;
-		}
-
-		await instance.sendText(`${mention} `, false, true);
-	}
-
-	/** Inserts an @-mention of each file into the chat input, as Claude Code's own "Insert @-Mention" command does. */
-	private async insertIntoClaudeCode(editor: WebviewInput, resources: readonly URI[]): Promise<void> {
-		for (const resource of resources) {
-			const path = this.getClaudeCodePath(resource);
-			const mention = getAgentDockMention(path);
-			if (!mention) {
-				this.warnCannotMention(path);
-				continue;
-			}
-
-			if (!await this.postMention(editor, mention, path)) {
-				return;
-			}
-		}
-	}
-
-	/** Inserts an @-mention of the selected lines into the chat input, as Claude Code's own "Insert @-Mention" command does. */
-	private async insertSelectionIntoClaudeCode(editor: WebviewInput, selection: IAgentDockSelection): Promise<void> {
-		const range = await this.locateSelection(selection);
-		if (!range) {
-			return;
-		}
-
-		const path = this.getClaudeCodePath(selection.resource);
-		const mention = getAgentDockSelectionMention(path, range, AgentDockDropTargetKind.ClaudeCode);
-		if (!mention) {
-			this.warnCannotMention(path);
-			return;
-		}
-
-		await this.postMention(editor, mention, path);
-	}
-
-	/**
-	 * The lines of the file on disk that a reference to `selection` points at, which Claude Code reads: they can differ
-	 * from those of the editor, such as of the staged version of a file or of a file with unsaved changes. Nothing, with a
-	 * warning, when the selected lines are not in the file on disk.
-	 */
-	private async locateSelection(selection: IAgentDockSelection): Promise<{ readonly startLineNumber: number; readonly endLineNumber: number } | undefined> {
-		let content: string;
-		try {
-			content = (await this.fileService.readFile(selection.resource)).value.toString();
-		} catch {
-			this.notificationService.warn(localize('agentDock.selectionFileMissing', "Cannot refer to the selected lines, as {0} is not on disk.", selection.resource.fsPath));
-			return undefined;
-		}
-
-		const range = locateAgentDockSelection(content, selection);
-		if (!range) {
-			this.notificationService.warn(localize('agentDock.selectionNotOnDisk', "Cannot refer to the selected lines, as {0} on disk does not have them, such as since it changed or they were removed.", selection.resource.fsPath));
-		}
-
-		return range;
-	}
-
-	/** The path of `resource` as Claude Code writes it in an @-mention in its chat input. */
-	private getClaudeCodePath(resource: URI): string {
-		const includeFolderName = this.workspaceContextService.getWorkspace().folders.length > 1;
-		return getAgentDockRelativePath(resource, this.workspaceContextService.getWorkspaceFolder(resource) ?? undefined, includeFolderName);
-	}
-
-	private async postMention(editor: WebviewInput, mention: string, path: string): Promise<boolean> {
-		if (await editor.webview.postMessage(createClaudeCodeInsertAtMentionMessage(mention))) {
-			return true;
-		}
-
-		this.notificationService.error(localize('agentDock.mentionFailed', "Could not insert {0} into Claude Code.", path));
-		return false;
-	}
-
-	private warnCannotMention(path: string): void {
-		this.notificationService.warn(localize('agentDock.cannotMention', "Claude Code cannot mention {0}, as its path contains # or a double quote.", path));
+		await this.agentDockInsertService.insert(target.group, payload);
 	}
 
 	//#endregion

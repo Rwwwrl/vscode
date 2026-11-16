@@ -14,10 +14,20 @@ export const AGENT_DOCK_VIEW_ID = 'vsade.agentDock.view';
 /** Set in the scoped context of each group of the Agent Dock, such as for the actions of its tab bar. */
 export const AgentDockGroupContext = new RawContextKey<boolean>('vsade.agentDockGroup', false);
 
+/**
+ * Set to true wherever the Agent Dock exists, such as for keybindings shared with builds without it, which would warn
+ * of a command they do not have.
+ */
+export const AgentDockAvailableContext = new RawContextKey<boolean>('vsade.agentDock.available', false);
+
+/** Set while a Markdown preview has the focus, such as for a keybinding of `vsade.agentDock.insertSelection` there. */
+export const AgentDockMarkdownPreviewFocusContext = new RawContextKey<boolean>('vsade.agentDock.markdownPreviewFocus', false);
+
 export const enum AgentDockCommandId {
 	Toggle = 'vsade.agentDock.toggle',
 	NewTerminal = 'vsade.agentDock.newTerminal',
 	NewClaudeCode = 'vsade.agentDock.newClaudeCode',
+	InsertSelection = 'vsade.agentDock.insertSelection',
 }
 
 export const enum AgentDockSettingId {

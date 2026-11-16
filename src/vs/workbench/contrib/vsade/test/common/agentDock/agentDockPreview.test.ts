@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AGENT_DOCK_PREVIEW_DRAG_MESSAGE, AGENT_DOCK_PREVIEW_READY_MESSAGE, getAgentDockPreviewLineRange, parseAgentDockPreviewMessage } from '../../../common/agentDock/agentDockPreview.js';
+import { AGENT_DOCK_PREVIEW_DRAG_MESSAGE, AGENT_DOCK_PREVIEW_READY_MESSAGE, AGENT_DOCK_PREVIEW_SELECTION_MESSAGE, getAgentDockPreviewLineRange, parseAgentDockPreviewMessage } from '../../../common/agentDock/agentDockPreview.js';
 
 suite('Agent Dock Preview', () => {
 
@@ -22,6 +22,9 @@ suite('Agent Dock Preview', () => {
 			parseAgentDockPreviewMessage({ type: AGENT_DOCK_PREVIEW_DRAG_MESSAGE, phase: 'move', x: 3, y: 4 }),
 			parseAgentDockPreviewMessage({ type: AGENT_DOCK_PREVIEW_DRAG_MESSAGE, phase: 'end', x: 3 }),
 			parseAgentDockPreviewMessage({ type: AGENT_DOCK_PREVIEW_DRAG_MESSAGE, phase: 'cancel' }),
+			parseAgentDockPreviewMessage({ type: AGENT_DOCK_PREVIEW_SELECTION_MESSAGE, requestId: 7, source: 'file:///repo/README.md', startLine: 2, endBlockLine: 4, nextBlockLine: 6 }),
+			parseAgentDockPreviewMessage({ type: AGENT_DOCK_PREVIEW_SELECTION_MESSAGE, requestId: 8 }),
+			parseAgentDockPreviewMessage({ type: AGENT_DOCK_PREVIEW_SELECTION_MESSAGE, startLine: 2 }),
 			parseAgentDockPreviewMessage({ type: 'didClick', line: 3 }),
 			parseAgentDockPreviewMessage('text'),
 		], [
@@ -32,6 +35,9 @@ suite('Agent Dock Preview', () => {
 			{ type: 'drag', drag: { phase: 'move', x: 3, y: 4 } },
 			undefined,
 			{ type: 'drag', drag: { phase: 'cancel' } },
+			{ type: 'selection', requestId: 7, blocks: { source: 'file:///repo/README.md', startLine: 2, endBlockLine: 4, nextBlockLine: 6 } },
+			{ type: 'selection', requestId: 8, blocks: undefined },
+			undefined,
 			undefined,
 			undefined,
 		]);
