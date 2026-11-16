@@ -20,6 +20,7 @@ import { IContentPart } from '../../../../services/editor/common/editorGroupsSer
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { AGENT_DOCK_VIEW_ID } from '../../common/agentDock/agentDock.js';
+import { AgentDockDropController } from './agentDockDropController.js';
 import { IAgentDockService } from './agentDockService.js';
 import './media/agentDock.css';
 
@@ -73,6 +74,9 @@ export class AgentDockViewPane extends ViewPane {
 			host.classList.remove(HOST_CLASS);
 			part.setVisible(false);
 		}));
+
+		// Files dropped on a terminal or an agent go into it
+		this._register(this.instantiationService.createInstance(AgentDockDropController, part, getWindow(container)));
 
 		this.empty = this.isPartEmpty();
 		this.updateVisibility();

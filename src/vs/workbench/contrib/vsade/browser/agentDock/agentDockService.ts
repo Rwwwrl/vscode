@@ -67,6 +67,14 @@ export interface IAgentDockService {
 
 	/** Opens a new Claude Code conversation in the dock. */
 	openClaudeCode(): Promise<void>;
+
+	/** Whether `editor` is one the dock holds: a terminal, or the panel of an agent. */
+	isDockEditor(editor: EditorInput): boolean;
+}
+
+/** What the dock needs to know of `editor` to decide whether it belongs there. */
+export function describeAgentDockEditor(editor: EditorInput): IAgentDockEditorDescriptor {
+	return { typeId: editor.typeId, viewType: editor instanceof WebviewInput ? editor.viewType : undefined };
 }
 
 /** How long {@link IAgentDockService.openClaudeCode} waits for the Claude Code panel to open. */
@@ -205,8 +213,12 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 		}
 	}
 
+	isDockEditor(editor: EditorInput): boolean {
+		return isAgentDockEditor(describeAgentDockEditor(editor), this.webviews);
+	}
+
 	private hasClaudeCode(): boolean {
-		return !!this.part?.groups.some(group => group.editors.some(editor => isAgentDockWebview(this.describe(editor), [CLAUDE_CODE_WEBVIEW_VIEW_TYPE])));
+		return !!this.part?.groups.some(group => group.editors.some(editor => isAgentDockWebview(describeAgentDockEditor(editor), [CLAUDE_CODE_WEBVIEW_VIEW_TYPE])));
 	}
 
 	/** The group of the editor area that editors leaving the dock go to: the most recently active unlocked one. */
@@ -243,7 +255,7 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 
 		// The move waits for the open to finish, which fires this event while it is under way
 		if (inDock) {
-			if (!isAgentDockEditor(this.describe(editor), this.webviews)) {
+			if (!isAgentDockEditor(describeAgentDockEditor(editor), this.webviews)) {
 				disposableTimeout(() => this.moveOutOfDock(group, editor), 0, this.pendingMoves);
 			} else if (firstSeen) {
 				const target = this.findGroupForNewTab(group, editor);
@@ -257,7 +269,7 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 	}
 
 	private shouldCapture(editor: EditorInput): boolean {
-		if (!isAgentDockWebview(this.describe(editor), this.webviews)) {
+		if (!isAgentDockWebview(describeAgentDockEditor(editor), this.webviews)) {
 			return false;
 		}
 
@@ -298,7 +310,7 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 			return emptyGroup;
 		}
 
-		if (group.count === 1 && isAgentDockWebview(this.describe(editor), this.webviews)) {
+		if (group.count === 1 && isAgentDockWebview(describeAgentDockEditor(editor), this.webviews)) {
 			return others[0];
 		}
 
@@ -343,10 +355,6 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 		for (const editor of group.editors) {
 			this.seenEditors.add(editor);
 		}
-	}
-
-	private describe(editor: EditorInput): IAgentDockEditorDescriptor {
-		return { typeId: editor.typeId, viewType: editor instanceof WebviewInput ? editor.viewType : undefined };
 	}
 
 	private get webviews(): readonly string[] {
