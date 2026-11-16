@@ -25,6 +25,21 @@
 	display: block;
 }
 
+/*
+ * Where files dragged over a terminal or an agent go. It is placed as the drop overlay of the editor area is, above the
+ * panels of agents, and lets the drag through to what it covers.
+ */
+.vsade-agent-dock-drop-overlay {
+	position: absolute;
+	z-index: 10000;
+	left: 0;
+	width: 100%;
+	pointer-events: none;
+	background-color: var(--vscode-editorGroup-dropBackground);
+	outline: 1px dashed var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
 /* What the dock covers hides, as some of it would show above the dock otherwise */
 .monaco-workbench .part.vsade-agent-dock-host:has(> .vsade-agent-dock-part.visible) > :not(.vsade-agent-dock-part) {
 	visibility: hidden;
