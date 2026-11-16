@@ -44,3 +44,22 @@
 .monaco-workbench .part.vsade-agent-dock-host:has(> .vsade-agent-dock-part.visible) > :not(.vsade-agent-dock-part) {
 	visibility: hidden;
 }
+
+/*
+ * Follows the pointer while a selection of the Markdown preview drags into the dock, as a native drag shows what it
+ * drags: the drag of the preview is not one. It shows above the panels of agents and lets the pointer through.
+ */
+.vsade-agent-dock-drag-ghost {
+	position: fixed;
+	z-index: 10001;
+	transform: translate(var(--vscode-spacing-size120), var(--vscode-spacing-size120));
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, transparent);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: var(--vscode-shadow-md);
+	font-size: var(--vscode-fontSize-body1);
+	white-space: nowrap;
+	pointer-events: none;
+}

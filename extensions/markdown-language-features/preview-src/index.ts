@@ -15,6 +15,8 @@ import { isOfScheme, Schemes } from '../src/util/schemes';
 import { DiffScrollSyncManager } from './diffScrollSync';
 import { areNodesEqual } from '../src/util/previewNodeEquality';
 import { updateSourceLineAttributes } from '../src/util/sourceLineMap';
+// FORK: vsade Agent Dock drags a selection of the preview by a badge (fork-owned vsadeSelectionBadge.ts)
+import { startVsadeSelectionBadge } from './vsadeSelectionBadge';
 
 let scrollDisabledCount = 0;
 let scrollDisabledTimer: number | undefined;
@@ -27,6 +29,8 @@ let documentResource = settings.settings.source;
 let lineChanges = settings.settings.lineChanges;
 
 const vscode = acquireVsCodeApi();
+// FORK: vsade Agent Dock selection badge, which posts its drag through the preview's only webview API
+startVsadeSelectionBadge(vscode, () => documentResource);
 
 const onDiffScroll = (mappedLine: number) => {
 	scrollDisabledCount = 1;
