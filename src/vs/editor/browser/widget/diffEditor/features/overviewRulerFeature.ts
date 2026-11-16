@@ -22,7 +22,8 @@ import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRuler
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
 export class OverviewRulerFeature extends Disposable {
-	private static readonly ONE_OVERVIEW_WIDTH = 15;
+	// FORK: narrow diff overview ruler; the lane width is a constant with no setting or seam (upstream: 15)
+	private static readonly ONE_OVERVIEW_WIDTH = 5;
 	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = this.ONE_OVERVIEW_WIDTH * 2;
 	public readonly width = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
