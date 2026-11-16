@@ -12,6 +12,9 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CodeDataTransfers, containsDragType, extractEditorsDropData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -25,16 +28,23 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { TerminalDataTransfers } from '../../../terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../terminal/browser/terminalEditorInput.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
-import { AgentDockDropTargetKind, createClaudeCodeInsertAtMentionMessage, getAgentDockDropTargetKind, getAgentDockMention, getAgentDockRelativePath, isAgentDockFileDrag, normalizeAgentDockDropResources } from '../../common/agentDock/agentDockDrop.js';
+import { AgentDockSettingId, AgentDockTerminalSelectionDrop } from '../../common/agentDock/agentDock.js';
+import { AGENT_DOCK_SELECTION_DATA_TRANSFER, AgentDockDropTargetKind, createClaudeCodeInsertAtMentionMessage, getAgentDockDropTargetKind, getAgentDockMention, getAgentDockRelativePath, getAgentDockSelectionMention, getAgentDockTerminalPath, IAgentDockSelection, isAgentDockFileDrag, locateAgentDockSelection, normalizeAgentDockDropResources, parseAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import { AgentDockPreviewDrag } from './agentDockPreviewDrag.js';
 import { describeAgentDockEditor, IAgentDockService } from './agentDockService.js';
 
 /** The tab of the dock that a drag of files is over, which takes the files when they drop. */
-interface IAgentDockDropTarget {
+export interface IAgentDockDropTarget {
 	readonly group: IEditorGroupView;
 	readonly kind: AgentDockDropTargetKind;
 	/** Whether the drag is over the terminal itself, whose own handling of drops the dock takes over. */
 	readonly overTerminal: boolean;
 }
+
+/** What a drop into a tab of the dock brings: the files of a drag, or the selection of an editor, from its badge. */
+type AgentDockDropPayload =
+	| { readonly kind: 'resources'; readonly resources: readonly URI[] }
+	| { readonly kind: 'selection'; readonly selection: IAgentDockSelection };
 
 /**
  * How long the drop feedback stays without a drag event over the dock: a drag from another application, which can leave
@@ -45,7 +55,8 @@ const OVERLAY_TIMEOUT = 500;
 /**
  * Drops files, such as from the Explorer, the Source Control view or editor tabs, into the tab of the dock under the
  * pointer, without a key held: a terminal gets their paths typed in, and Claude Code an @-mention of each in its chat
- * input. Groups, terminals and the dock's own tabs still move and split groups as they would without it.
+ * input. The selection of an editor, dragged by its badge (`AgentDockSelectionBadge`), goes in as an @-mention of its
+ * lines. Groups, terminals and the dock's own tabs still move and split groups as they would without it.
  *
  * The workbench stands down for such drags as the groups of the dock register as inputs that take them. The dock takes
  * them before anything else, in the capture phase on the window, which also reaches drags over the panels of agents: those
@@ -63,12 +74,15 @@ export class AgentDockDropController extends Disposable {
 
 	constructor(
 		private readonly part: IContentPart,
-		targetWindow: CodeWindow,
+		private readonly targetWindow: CodeWindow,
 		@IAgentDockService private readonly agentDockService: IAgentDockService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService private readonly hostService: IHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -85,6 +99,9 @@ export class AgentDockDropController extends Disposable {
 		this._register(addDisposableListener(targetWindow, EventType.DRAG_LEAVE, e => this.onDrag(e), true));
 		this._register(addDisposableListener(targetWindow, EventType.DROP, e => this.onDrop(targetWindow, e), true));
 		this._register(addDisposableListener(targetWindow, EventType.DRAG_END, () => this.hideOverlay()));
+
+		// Selections dragged from the Markdown preview, which cannot drag natively out of it
+		this._register(instantiationService.createInstance(AgentDockPreviewDrag, this, targetWindow));
 	}
 
 	private registerGroup(group: IEditorGroup): void {
@@ -134,6 +151,11 @@ export class AgentDockDropController extends Disposable {
 			return undefined;
 		}
 
+		return this.findTargetAt(element, e.clientY);
+	}
+
+	/** The tab that takes what drops on `element`, at `clientY` in the window, as for {@link findTarget}. */
+	findTargetAt(element: HTMLElement, clientY: number): IAgentDockDropTarget | undefined {
 		for (const group of this.part.groups as IEditorGroupView[]) {
 			const editor = group.activeEditor;
 			const kind = getAgentDockDropTargetKind(editor ? describeAgentDockEditor(editor) : undefined);
@@ -144,7 +166,7 @@ export class AgentDockDropController extends Disposable {
 				}
 
 				const overTerminal = editor instanceof TerminalEditorInput && !!this.getTerminalDropElement(editor)?.contains(element);
-				if (overTerminal || e.clientY >= group.element.getBoundingClientRect().top + group.titleHeight.offset) {
+				if (overTerminal || clientY >= group.element.getBoundingClientRect().top + group.titleHeight.offset) {
 					return { group, kind, overTerminal };
 				}
 
@@ -163,6 +185,7 @@ export class AgentDockDropController extends Disposable {
 		const draggedEditors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype) ?? [];
 
 		return isAgentDockFileDrag({
+			carriesSelection: containsDragType(e, AGENT_DOCK_SELECTION_DATA_TRANSFER),
 			carriesResources: containsDragType(e, DataTransfers.RESOURCES, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES)
 				|| draggedEditors.some(({ identifier }) => normalizeAgentDockDropResources(this.getEditorResources(identifier.editor)).length > 0),
 			draggingGroup: this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype),
@@ -181,7 +204,11 @@ export class AgentDockDropController extends Disposable {
 
 	//#region Feedback
 
-	private showOverlay(group: IEditorGroupView): void {
+	/**
+	 * Shows where a drag drops. It hides by itself when no other drag event comes in time, unless `untilHidden`: a drag
+	 * that is not a native one, which ends with {@link hideOverlay}.
+	 */
+	showOverlay(group: IEditorGroupView, untilHidden?: boolean): void {
 		if (this.overlay.parentElement !== group.element) {
 			group.element.appendChild(this.overlay);
 		}
@@ -190,10 +217,14 @@ export class AgentDockDropController extends Disposable {
 		this.overlay.style.top = `${offset}px`;
 		this.overlay.style.height = `calc(100% - ${offset}px)`;
 
-		this.hideOverlayScheduler.schedule();
+		if (untilHidden) {
+			this.hideOverlayScheduler.cancel();
+		} else {
+			this.hideOverlayScheduler.schedule();
+		}
 	}
 
-	private hideOverlay(): void {
+	hideOverlay(): void {
 		this.hideOverlayScheduler.cancel();
 		this.overlay.remove();
 	}
@@ -220,10 +251,29 @@ export class AgentDockDropController extends Disposable {
 		}
 
 		// The data of a drop can only be read while it is handled
-		const resources = this.resolveResources(e);
-		if (resources.length && editor) {
-			this.insert(targetWindow, target, editor, resources).catch(onUnexpectedError);
+		const payload = this.resolvePayload(e);
+		if (payload && editor) {
+			this.insert(targetWindow, target, editor, payload).catch(onUnexpectedError);
 		}
+	}
+
+	/** Inserts a reference to `selection` into the tab of `target`, as a drop of the selection on it does. */
+	async dropSelection(target: IAgentDockDropTarget, selection: IAgentDockSelection): Promise<void> {
+		const editor = target.group.activeEditor;
+		if (editor) {
+			await this.insert(this.targetWindow, target, editor, { kind: 'selection', selection });
+		}
+	}
+
+	private resolvePayload(e: DragEvent): AgentDockDropPayload | undefined {
+		const selectionData = e.dataTransfer?.getData(AGENT_DOCK_SELECTION_DATA_TRANSFER);
+		if (selectionData) {
+			const selection = parseAgentDockSelection(selectionData);
+			return selection ? { kind: 'selection', selection } : undefined;
+		}
+
+		const resources = this.resolveResources(e);
+		return resources.length ? { kind: 'resources', resources } : undefined;
 	}
 
 	/**
@@ -276,7 +326,7 @@ export class AgentDockDropController extends Disposable {
 		return resource ? [resource] : [];
 	}
 
-	private async insert(targetWindow: CodeWindow, target: IAgentDockDropTarget, editor: EditorInput, resources: readonly URI[]): Promise<void> {
+	private async insert(targetWindow: CodeWindow, target: IAgentDockDropTarget, editor: EditorInput, payload: AgentDockDropPayload): Promise<void> {
 		if (!targetWindow.document.hasFocus()) {
 			await this.hostService.focus(targetWindow); // a drop from another application
 		}
@@ -285,9 +335,17 @@ export class AgentDockDropController extends Disposable {
 		target.group.focus();
 
 		if (target.kind === AgentDockDropTargetKind.Terminal && editor instanceof TerminalEditorInput) {
-			await this.insertIntoTerminal(editor, resources);
+			if (payload.kind === 'selection') {
+				await this.insertSelectionIntoTerminal(editor, payload.selection);
+			} else {
+				await this.insertIntoTerminal(editor, payload.resources);
+			}
 		} else if (target.kind === AgentDockDropTargetKind.ClaudeCode && editor instanceof WebviewInput) {
-			await this.insertIntoClaudeCode(editor, resources);
+			if (payload.kind === 'selection') {
+				await this.insertSelectionIntoClaudeCode(editor, payload.selection);
+			} else {
+				await this.insertIntoClaudeCode(editor, payload.resources);
+			}
 		}
 	}
 
@@ -302,23 +360,108 @@ export class AgentDockDropController extends Disposable {
 		await instance.sendText(`${paths.join(' ')} `, false, true);
 	}
 
+	/**
+	 * Types an @-mention of the selected lines for the command line of Claude Code, followed by a space to type on, or the
+	 * selected text itself, as `vsade.agentDock.terminalSelectionDrop` says.
+	 */
+	private async insertSelectionIntoTerminal(editor: TerminalEditorInput, selection: IAgentDockSelection): Promise<void> {
+		const instance = editor.terminalInstance;
+		if (!instance) {
+			return;
+		}
+
+		if (this.configurationService.getValue<string>(AgentDockSettingId.TerminalSelectionDrop) === AgentDockTerminalSelectionDrop.Text) {
+			await instance.sendText(selection.text, false, true);
+			return;
+		}
+
+		const range = await this.locateSelection(selection);
+		if (!range) {
+			return;
+		}
+
+		const path = getAgentDockTerminalPath(selection.resource, await instance.getCwdResource());
+		const mention = getAgentDockSelectionMention(path, range, AgentDockDropTargetKind.Terminal);
+		if (!mention) {
+			this.warnCannotMention(path);
+			return;
+		}
+
+		await instance.sendText(`${mention} `, false, true);
+	}
+
 	/** Inserts an @-mention of each file into the chat input, as Claude Code's own "Insert @-Mention" command does. */
 	private async insertIntoClaudeCode(editor: WebviewInput, resources: readonly URI[]): Promise<void> {
-		const includeFolderName = this.workspaceContextService.getWorkspace().folders.length > 1;
-
 		for (const resource of resources) {
-			const path = getAgentDockRelativePath(resource, this.workspaceContextService.getWorkspaceFolder(resource) ?? undefined, includeFolderName);
+			const path = this.getClaudeCodePath(resource);
 			const mention = getAgentDockMention(path);
 			if (!mention) {
-				this.notificationService.warn(localize('agentDock.cannotMention', "Claude Code cannot mention {0}, as its path contains # or a double quote.", path));
+				this.warnCannotMention(path);
 				continue;
 			}
 
-			if (!await editor.webview.postMessage(createClaudeCodeInsertAtMentionMessage(mention))) {
-				this.notificationService.error(localize('agentDock.mentionFailed', "Could not insert {0} into Claude Code.", path));
+			if (!await this.postMention(editor, mention, path)) {
 				return;
 			}
 		}
+	}
+
+	/** Inserts an @-mention of the selected lines into the chat input, as Claude Code's own "Insert @-Mention" command does. */
+	private async insertSelectionIntoClaudeCode(editor: WebviewInput, selection: IAgentDockSelection): Promise<void> {
+		const range = await this.locateSelection(selection);
+		if (!range) {
+			return;
+		}
+
+		const path = this.getClaudeCodePath(selection.resource);
+		const mention = getAgentDockSelectionMention(path, range, AgentDockDropTargetKind.ClaudeCode);
+		if (!mention) {
+			this.warnCannotMention(path);
+			return;
+		}
+
+		await this.postMention(editor, mention, path);
+	}
+
+	/**
+	 * The lines of the file on disk that a reference to `selection` points at, which Claude Code reads: they can differ
+	 * from those of the editor, such as of the staged version of a file or of a file with unsaved changes. Nothing, with a
+	 * warning, when the selected lines are not in the file on disk.
+	 */
+	private async locateSelection(selection: IAgentDockSelection): Promise<{ readonly startLineNumber: number; readonly endLineNumber: number } | undefined> {
+		let content: string;
+		try {
+			content = (await this.fileService.readFile(selection.resource)).value.toString();
+		} catch {
+			this.notificationService.warn(localize('agentDock.selectionFileMissing', "Cannot refer to the selected lines, as {0} is not on disk.", selection.resource.fsPath));
+			return undefined;
+		}
+
+		const range = locateAgentDockSelection(content, selection);
+		if (!range) {
+			this.notificationService.warn(localize('agentDock.selectionNotOnDisk', "Cannot refer to the selected lines, as {0} on disk does not have them, such as since it changed or they were removed.", selection.resource.fsPath));
+		}
+
+		return range;
+	}
+
+	/** The path of `resource` as Claude Code writes it in an @-mention in its chat input. */
+	private getClaudeCodePath(resource: URI): string {
+		const includeFolderName = this.workspaceContextService.getWorkspace().folders.length > 1;
+		return getAgentDockRelativePath(resource, this.workspaceContextService.getWorkspaceFolder(resource) ?? undefined, includeFolderName);
+	}
+
+	private async postMention(editor: WebviewInput, mention: string, path: string): Promise<boolean> {
+		if (await editor.webview.postMessage(createClaudeCodeInsertAtMentionMessage(mention))) {
+			return true;
+		}
+
+		this.notificationService.error(localize('agentDock.mentionFailed', "Could not insert {0} into Claude Code.", path));
+		return false;
+	}
+
+	private warnCannotMention(path: string): void {
+		this.notificationService.warn(localize('agentDock.cannotMention', "Claude Code cannot mention {0}, as its path contains # or a double quote.", path));
 	}
 
 	//#endregion

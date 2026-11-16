@@ -1,0 +1,38 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The badge next to a selection: a floating control at the control tier, opaque over what it covers, as tall as the
+ * line it sits on, that drags rather than clicks. It keeps a gap from the code it follows at the end of a line.
+ */
+.monaco-editor .vsade-agent-dock-selection-badge-content {
+	display: flex;
+	box-sizing: border-box;
+	width: max-content;
+	white-space: nowrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, transparent);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: var(--vscode-shadow-md);
+	font-size: var(--vscode-fontSize-body1);
+	cursor: grab;
+	user-select: none;
+}
+
+.monaco-editor .vsade-agent-dock-selection-badge.at-line-end > .vsade-agent-dock-selection-badge-content {
+	margin-left: var(--vscode-spacing-size160);
+}
+
+.monaco-editor .vsade-agent-dock-selection-badge:active > .vsade-agent-dock-selection-badge-content {
+	cursor: grabbing;
+}
+
+.monaco-editor .vsade-agent-dock-selection-badge-content > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}

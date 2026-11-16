@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
-import { relativePath } from '../../../../../base/common/resources.js';
+import { isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { CLAUDE_CODE_WEBVIEW_VIEW_TYPE, IAgentDockEditorDescriptor, isAgentDockWebview, TERMINAL_EDITOR_TYPE_ID } from './agentDock.js';
 
 /** The tabs of the Agent Dock that take dropped files. */
@@ -37,6 +38,8 @@ export function getAgentDockDropTargetKind(editor: IAgentDockEditorDescriptor | 
 export interface IAgentDockDrag {
 	/** Whether the drag carries resources, such as files from the Explorer or an editor tab. */
 	readonly carriesResources: boolean;
+	/** Whether the drag carries the selection of an editor, from its badge. */
+	readonly carriesSelection: boolean;
 	/** Whether an editor group is dragged. */
 	readonly draggingGroup: boolean;
 	/** Whether terminals are dragged, such as from the list of terminals. */
@@ -46,10 +49,14 @@ export interface IAgentDockDrag {
 }
 
 /**
- * Whether the files of a drag go into the tab under it. Groups, terminals and the dock's own editors keep the workbench's
- * handling: they move or split groups.
+ * Whether the files or the selection of a drag go into the tab under it. Groups, terminals and the dock's own editors keep
+ * the workbench's handling: they move or split groups.
  */
 export function isAgentDockFileDrag(drag: IAgentDockDrag): boolean {
+	if (drag.carriesSelection) {
+		return true;
+	}
+
 	return drag.carriesResources && !drag.draggingGroup && !drag.draggingTerminals && !drag.draggingDockEditor;
 }
 
@@ -127,6 +134,119 @@ export function getAgentDockMention(path: string): string | undefined {
 	}
 
 	return `@${path}`;
+}
+
+/** The type of the data of a drag of the selection of an editor, which its badge starts. */
+export const AGENT_DOCK_SELECTION_DATA_TRANSFER = 'application/vnd.code.vsade.selection';
+
+/** The selection of an editor that is dragged into the dock. */
+export interface IAgentDockSelection {
+	/**
+	 * The file on disk that the selection refers to: the file of the editor, or the file in the working tree that a
+	 * read-only version of it stands for, such as the staged version in a diff of the Source Control view.
+	 */
+	readonly resource: URI;
+	/** The first and the last line of the selection, from 1, in the editor it was made in. */
+	readonly startLineNumber: number;
+	readonly endLineNumber: number;
+	/** The selected text. */
+	readonly text: string;
+	/** The whole of the lines of the selection, which find them in the file on disk when their numbers differ there. */
+	readonly lines: readonly string[];
+}
+
+/**
+ * The selection `range` of the editor of `resource` with the `text` in it; `getLineContent` gives the text of a line of
+ * the editor. A selection that ends at the start of a line ends with the line before: nothing of that last line is
+ * selected. Nothing for an editor of anything but a file (see {@link normalizeAgentDockDropResources}).
+ */
+export function createAgentDockSelection(resource: URI, range: IRange, text: string, getLineContent: (lineNumber: number) => string): IAgentDockSelection | undefined {
+	const [file] = normalizeAgentDockDropResources([resource]);
+	if (!file) {
+		return undefined;
+	}
+
+	const endsBeforeLine = range.endColumn === 1 && range.endLineNumber > range.startLineNumber;
+	const endLineNumber = endsBeforeLine ? range.endLineNumber - 1 : range.endLineNumber;
+	const lines: string[] = [];
+	for (let lineNumber = range.startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+		lines.push(getLineContent(lineNumber));
+	}
+
+	return { resource: file, startLineNumber: range.startLineNumber, endLineNumber, text, lines };
+}
+
+/**
+ * Where the lines of `selection` are in `content`, the text of its file on disk, for a reference to them: where they were
+ * selected when they are still there, such as from the file itself, saved; else where they are nearest to that, such as
+ * from the staged version of a file that changed since, or from an editor with unsaved changes. Nothing when they are not
+ * in the file, as a reference would point at other lines.
+ */
+export function locateAgentDockSelection(content: string, selection: IAgentDockSelection): { readonly startLineNumber: number; readonly endLineNumber: number } | undefined {
+	const fileLines = content.split(/\r\n|\r|\n/);
+	const count = selection.lines.length;
+	const matchesAt = (index: number) => {
+		for (let offset = 0; offset < count; offset++) {
+			if (fileLines[index + offset] !== selection.lines[offset]) {
+				return false;
+			}
+		}
+		return true;
+	};
+
+	const selectedIndex = selection.startLineNumber - 1;
+	let bestIndex: number | undefined;
+	for (let index = 0; index + count <= fileLines.length; index++) {
+		if (matchesAt(index) && (bestIndex === undefined || Math.abs(index - selectedIndex) < Math.abs(bestIndex - selectedIndex))) {
+			bestIndex = index;
+		}
+	}
+
+	return bestIndex === undefined ? undefined : { startLineNumber: bestIndex + 1, endLineNumber: bestIndex + count };
+}
+
+/** The data of a drag of `selection`, for {@link AGENT_DOCK_SELECTION_DATA_TRANSFER}. */
+export function serializeAgentDockSelection(selection: IAgentDockSelection): string {
+	return JSON.stringify({ ...selection, resource: selection.resource.toString() });
+}
+
+/** The selection of the data of a drag, unless the data is not of a selection. */
+export function parseAgentDockSelection(data: string): IAgentDockSelection | undefined {
+	try {
+		const { resource, startLineNumber, endLineNumber, text, lines } = JSON.parse(data) as { [key: string]: unknown };
+		if (typeof resource === 'string' && Number.isInteger(startLineNumber) && Number.isInteger(endLineNumber) && typeof text === 'string'
+			&& Array.isArray(lines) && lines.every(line => typeof line === 'string')) {
+			return { resource: URI.parse(resource), startLineNumber: startLineNumber as number, endLineNumber: endLineNumber as number, text, lines };
+		}
+	} catch {
+		// not a selection
+	}
+
+	return undefined;
+}
+
+/**
+ * The path of `resource` for the command line of Claude Code in a terminal: relative to `cwd`, the working directory of
+ * the terminal, when the resource is in it; the absolute path otherwise.
+ */
+export function getAgentDockTerminalPath(resource: URI, cwd: URI | undefined): string {
+	const relative = cwd && isEqualOrParent(resource, cwd) ? relativePath(cwd, resource) : undefined;
+	return relative || resource.fsPath;
+}
+
+/**
+ * The @-mention of the lines `range` in the file at `path` as Claude Code writes it, unless the path cannot be
+ * mentioned (see {@link getAgentDockMention}): `@path#3-5` in the chat input of its panel, where its "Insert @-Mention"
+ * command writes it, and `@path#L3-5` on its command line, in a terminal.
+ */
+export function getAgentDockSelectionMention(path: string, range: { readonly startLineNumber: number; readonly endLineNumber: number }, target: AgentDockDropTargetKind): string | undefined {
+	const mention = getAgentDockMention(path);
+	if (!mention) {
+		return undefined;
+	}
+
+	const lines = range.startLineNumber === range.endLineNumber ? `${range.startLineNumber}` : `${range.startLineNumber}-${range.endLineNumber}`;
+	return `${mention}#${target === AgentDockDropTargetKind.Terminal ? 'L' : ''}${lines}`;
 }
 
 /**

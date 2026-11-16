@@ -12,6 +12,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../../editor/browser/editorExtensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
@@ -21,11 +22,15 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, 
 import { editorGroupToColumn } from '../../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockCommandId, AgentDockGroupContext, AgentDockSettingId, CLAUDE_CODE_WEBVIEW_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
+import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
+import { AgentDockSelectionBadge } from './agentDockSelectionBadge.js';
 import { AgentDockService, IAgentDockService } from './agentDockService.js';
 import { AgentDockViewPane } from './agentDockView.js';
 
 registerSingleton(IAgentDockService, AgentDockService, InstantiationType.Delayed);
+
+// The badge next to a selection, which drags a reference to it into the dock
+registerEditorContribution(AgentDockSelectionBadge.ID, AgentDockSelectionBadge, EditorContributionInstantiation.AfterFirstRender);
 
 //#region View
 
@@ -80,6 +85,27 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('agentDock.captureWebviews', "Controls whether a new webview panel listed in `#{0}#` moves into the Agent Dock when it opens in the editor area.", AgentDockSettingId.Webviews),
+		},
+		[AgentDockSettingId.SelectionBadge]: {
+			type: 'string',
+			enum: [AgentDockSelectionBadgeMode.Mouse, AgentDockSelectionBadgeMode.Always, AgentDockSelectionBadgeMode.Off],
+			enumDescriptions: [
+				localize('agentDock.selectionBadge.mouse', "Show the badge next to selections made with the mouse."),
+				localize('agentDock.selectionBadge.always', "Show the badge next to every selection, also one made with the keyboard."),
+				localize('agentDock.selectionBadge.off', "Never show the badge."),
+			],
+			default: AgentDockSelectionBadgeMode.Mouse,
+			markdownDescription: localize('agentDock.selectionBadgeSetting', "Controls when a badge shows next to the selection of a file in an editor. Dragging the badge onto a terminal or Claude Code in the Agent Dock inserts a reference to the selected lines."),
+		},
+		[AgentDockSettingId.TerminalSelectionDrop]: {
+			type: 'string',
+			enum: [AgentDockTerminalSelectionDrop.Reference, AgentDockTerminalSelectionDrop.Text],
+			enumDescriptions: [
+				localize('agentDock.terminalSelectionDrop.reference', "Insert a reference to the selected lines, such as `@src/a.ts#L3-5`, as the command line of Claude Code reads it."),
+				localize('agentDock.terminalSelectionDrop.text', "Insert the selected text."),
+			],
+			default: AgentDockTerminalSelectionDrop.Reference,
+			markdownDescription: localize('agentDock.terminalSelectionDropSetting', "Controls what a terminal of the Agent Dock gets when a selection is dragged onto it by its badge (`#{0}#`).", AgentDockSettingId.SelectionBadge),
 		},
 	},
 });

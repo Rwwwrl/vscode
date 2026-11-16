@@ -23,6 +23,25 @@ export const enum AgentDockCommandId {
 export const enum AgentDockSettingId {
 	Webviews = 'vsade.agentDock.webviews',
 	CaptureWebviews = 'vsade.agentDock.captureWebviews',
+	SelectionBadge = 'vsade.agentDock.selectionBadge',
+	TerminalSelectionDrop = 'vsade.agentDock.terminalSelectionDrop',
+}
+
+/** Which selections of an editor show the badge that drags a reference to them into the Agent Dock. */
+export const enum AgentDockSelectionBadgeMode {
+	/** The selections made with the mouse. */
+	Mouse = 'mouse',
+	/** Every selection, also one made with the keyboard. */
+	Always = 'always',
+	Off = 'off',
+}
+
+/** What a terminal of the Agent Dock gets when a selection drops on it. */
+export const enum AgentDockTerminalSelectionDrop {
+	/** A reference to the lines, as the command line of Claude Code reads it. */
+	Reference = 'reference',
+	/** The selected text. */
+	Text = 'text',
 }
 
 /** The webview panel of the Claude Code extension, by the view type the extension gives it. */
