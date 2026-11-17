@@ -79,6 +79,10 @@ install:
     fi
     rm -rf "/Applications/$name.app"
     ditto "$app" "/Applications/$name.app"
+    # The packaged bundle is dated 1980, so macOS keeps showing the icon it cached for the previous install.
+    # A fresh date and a forced registration make Finder and the Dock read the new icon.
+    touch "/Applications/$name.app"
+    /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "/Applications/$name.app"
     # The launcher script resolves symlinks back to the app, like upstream's "Install 'code' command in PATH".
     mkdir -p "$bin"
     ln -sf "/Applications/$name.app/Contents/Resources/app/bin/code" "$bin/$cli"
