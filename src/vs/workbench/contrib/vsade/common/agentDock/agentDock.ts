@@ -23,8 +23,23 @@ export const AgentDockAvailableContext = new RawContextKey<boolean>('vsade.agent
 /** Set while a Markdown preview has the focus, such as for a keybinding of `vsade.agentDock.insertSelection` there. */
 export const AgentDockMarkdownPreviewFocusContext = new RawContextKey<boolean>('vsade.agentDock.markdownPreviewFocus', false);
 
+/**
+ * Set while the active editor group is a group of the Agent Dock, such as for a keybinding of
+ * `vsade.agentDock.focusEditorArea` there.
+ */
+export const AgentDockActiveContext = new RawContextKey<boolean>('vsade.agentDock.active', false);
+
+/**
+ * Set while the active editor group is the last group of the editor area, such as for a keybinding of
+ * `vsade.agentDock.focus` there. `activeEditorGroupLast` does not tell: it counts the groups of every editor part, those
+ * of the dock among them.
+ */
+export const AgentDockActiveEditorAreaGroupLastContext = new RawContextKey<boolean>('vsade.agentDock.activeEditorAreaGroupLast', false);
+
 export const enum AgentDockCommandId {
 	Toggle = 'vsade.agentDock.toggle',
+	Focus = 'vsade.agentDock.focus',
+	FocusEditorArea = 'vsade.agentDock.focusEditorArea',
 	NewTerminal = 'vsade.agentDock.newTerminal',
 	NewClaudeCode = 'vsade.agentDock.newClaudeCode',
 	InsertSelection = 'vsade.agentDock.insertSelection',

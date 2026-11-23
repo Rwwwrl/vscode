@@ -68,6 +68,18 @@ export interface IAgentDockService {
 	/** Opens a new Claude Code conversation in the dock. */
 	openClaudeCode(): Promise<void>;
 
+	/**
+	 * The group of the dock that was active last among those with a tab, or among those whose active tab `accepts`
+	 * takes.
+	 */
+	getLastActiveGroup(accepts?: (editor: EditorInput) => boolean): IEditorGroup | undefined;
+
+	/**
+	 * Shows the dock and focuses the tab that was active last. Without a tab, a new Claude Code conversation opens
+	 * instead.
+	 */
+	focusLastActive(): Promise<void>;
+
 	/** Whether `editor` is one the dock holds: a terminal, or the panel of an agent. */
 	isDockEditor(editor: EditorInput): boolean;
 }
@@ -211,6 +223,26 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 			this.expectWebviewUntil = 0;
 			this.notificationService.error(localize('agentDock.claudeCodeMissing', "Could not open Claude Code. Make sure the Claude Code extension is installed and enabled."));
 		}
+	}
+
+	getLastActiveGroup(accepts?: (editor: EditorInput) => boolean): IEditorGroup | undefined {
+		return this.getPart().part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => {
+			const editor = group.activeEditor;
+			return !!editor && (!accepts || accepts(editor));
+		});
+	}
+
+	async focusLastActive(): Promise<void> {
+		await this.reveal(true);
+
+		const group = this.getLastActiveGroup();
+		if (!group) {
+			await this.openClaudeCode();
+			return;
+		}
+
+		this.editorGroupsService.activateGroup(group);
+		group.focus();
 	}
 
 	isDockEditor(editor: EditorInput): boolean {
