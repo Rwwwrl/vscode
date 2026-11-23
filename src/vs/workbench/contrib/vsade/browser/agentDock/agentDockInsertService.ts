@@ -14,7 +14,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { TerminalEditorInput } from '../../../terminal/browser/terminalEditorInput.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
@@ -105,10 +105,7 @@ export class AgentDockInsertService implements IAgentDockInsertService {
 
 	/** The most recently active group of the dock whose active tab takes references, a terminal or Claude Code. */
 	private findLastActiveGroup(): IEditorGroup | undefined {
-		return this.agentDockService.getPart().part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => {
-			const editor = group.activeEditor;
-			return !!editor && !!getAgentDockDropTargetKind(describeAgentDockEditor(editor));
-		});
+		return this.agentDockService.getLastActiveGroup(editor => !!getAgentDockDropTargetKind(describeAgentDockEditor(editor)));
 	}
 
 	/** Opens a new Claude Code conversation in the dock, and returns its group once the panel started. */

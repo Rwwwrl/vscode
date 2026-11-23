@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
@@ -26,7 +27,7 @@ import { editorGroupToColumn } from '../../../../services/editor/common/editorGr
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockAvailableContext, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
+import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockActiveContext, AgentDockActiveEditorAreaGroupLastContext, AgentDockAvailableContext, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
 import { IAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
 import { AgentDockInsertService, IAgentDockInsertService } from './agentDockInsertService.js';
 import { AgentDockMarkdownPreviewFocusTracker, isAgentDockMarkdownPreview, requestAgentDockPreviewSelection } from './agentDockPreviewSelection.js';
@@ -137,6 +138,41 @@ class ToggleAgentDockAction extends Action2 {
 	}
 }
 
+/**
+ * Focuses the tab of the dock that was active last, as `vsade.agentDock.insertSelection` finds it, and shows the dock
+ * first when it is hidden.
+ */
+class FocusAgentDockAction extends Action2 {
+	constructor() {
+		super({
+			id: AgentDockCommandId.Focus,
+			title: localize2('agentDock.focus', "Focus Agent Dock"),
+			category: Categories.View,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IAgentDockService).focusLastActive();
+	}
+}
+
+/** Focuses the group of the editor area that was active last, such as to go back from the dock. */
+class FocusEditorAreaAction extends Action2 {
+	constructor() {
+		super({
+			id: AgentDockCommandId.FocusEditorArea,
+			title: localize2('agentDock.focusEditorArea', "Focus Editor Area"),
+			category: Categories.View,
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IEditorGroupsService).mainPart.activeGroup.focus();
+	}
+}
+
 class NewTerminalInAgentDockAction extends Action2 {
 	constructor() {
 		super({
@@ -244,6 +280,8 @@ class InsertSelectionIntoAgentDockAction extends Action2 {
 }
 
 registerAction2(ToggleAgentDockAction);
+registerAction2(FocusAgentDockAction);
+registerAction2(FocusEditorAreaAction);
 registerAction2(NewTerminalInAgentDockAction);
 registerAction2(NewClaudeCodeInAgentDockAction);
 registerAction2(InsertSelectionIntoAgentDockAction);
@@ -252,7 +290,8 @@ registerAction2(InsertSelectionIntoAgentDockAction);
 
 /**
  * Restores the dock once the workbench restored, also while it is hidden, so that its terminals reconnect to their
- * processes in time, and so that agent panels move into the dock as they open. Tells keybindings the dock exists.
+ * processes in time, and so that agent panels move into the dock as they open. Tells keybindings the dock exists, and
+ * whether the active editor group is one of the dock or the last one of the editor area.
  */
 class AgentDockContribution extends Disposable implements IWorkbenchContribution {
 
@@ -261,11 +300,23 @@ class AgentDockContribution extends Disposable implements IWorkbenchContribution
 	constructor(
 		@IAgentDockService agentDockService: IAgentDockService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
 		AgentDockAvailableContext.bindTo(contextKeyService).set(true);
 		agentDockService.restore();
+
+		const active = AgentDockActiveContext.bindTo(contextKeyService);
+		const activeEditorAreaGroupLast = AgentDockActiveEditorAreaGroupLastContext.bindTo(contextKeyService);
+		const mainPart = editorGroupsService.mainPart;
+		const update = () => {
+			const activeGroup = editorGroupsService.activeGroup;
+			active.set(agentDockService.isDockGroup(activeGroup));
+			activeEditorAreaGroupLast.set(mainPart.activeGroup === activeGroup && activeGroup.index === mainPart.count - 1);
+		};
+		update();
+		this._register(Event.any(editorGroupsService.onDidChangeActiveGroup, mainPart.onDidAddGroup, mainPart.onDidRemoveGroup, mainPart.onDidChangeGroupIndex)(update));
 	}
 }
 
