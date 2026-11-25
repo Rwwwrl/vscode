@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 /** The view container of the Agent Dock, in the secondary side bar by default. */
@@ -42,6 +44,7 @@ export const enum AgentDockCommandId {
 	FocusEditorArea = 'vsade.agentDock.focusEditorArea',
 	NewTerminal = 'vsade.agentDock.newTerminal',
 	NewClaudeCode = 'vsade.agentDock.newClaudeCode',
+	NewCodex = 'vsade.agentDock.newCodex',
 	InsertSelection = 'vsade.agentDock.insertSelection',
 }
 
@@ -75,11 +78,26 @@ export const CLAUDE_CODE_WEBVIEW_VIEW_TYPE = 'claudeVSCodePanel';
 /** The command of the Claude Code extension that opens a new conversation in an editor tab. */
 export const CLAUDE_CODE_OPEN_EDITOR_COMMAND_ID = 'claude-vscode.editor.open';
 
+/** The custom editor of the Codex extension, in which it shows a conversation in an editor tab. */
+export const CODEX_CUSTOM_EDITOR_VIEW_TYPE = 'chatgpt.conversationEditor';
+
+/**
+ * A resource that the Codex custom editor opens a new conversation for: the one of its "New Codex Agent" command, which
+ * the extension reads by its path and query only. The fragment makes each one a new tab: the custom editor takes one tab
+ * per resource, so the command reveals the tab it opened before, also once that has a conversation.
+ */
+export function createCodexNewConversationResource(): URI {
+	return URI.from({ scheme: 'openai-codex', authority: 'route', path: '/extension/panel/new', fragment: `vsade-${generateUuid()}` });
+}
+
 /** The type id of the editor of a terminal shown as an editor (`TerminalEditorInput.ID`). */
 export const TERMINAL_EDITOR_TYPE_ID = 'workbench.editors.terminal';
 
-/** The type id of the editor of a webview panel (`WebviewInput.typeId`); custom editors have their own. */
+/** The type id of the editor of a webview panel (`WebviewInput.typeId`). */
 export const WEBVIEW_EDITOR_TYPE_ID = 'workbench.editors.webviewInput';
+
+/** The type id of the editor of a custom editor (`CustomEditorInput.typeId`), whose view type is the extension's own. */
+export const CUSTOM_EDITOR_TYPE_ID = 'workbench.editors.webviewEditor';
 
 /** What the workbench prefixes the view type of a webview panel of an extension with. */
 const EXTENSION_WEBVIEW_VIEW_TYPE_PREFIX = 'mainThreadWebview-';
@@ -87,20 +105,33 @@ const EXTENSION_WEBVIEW_VIEW_TYPE_PREFIX = 'mainThreadWebview-';
 /** What the Agent Dock needs to know of an editor to decide whether it belongs there. */
 export interface IAgentDockEditorDescriptor {
 	readonly typeId: string;
-	/** The view type of a webview panel, as the workbench has it. */
+	/** The view type of a webview panel or a custom editor, as the workbench has it. */
 	readonly viewType?: string;
 }
 
 /**
- * Whether `editor` is a webview panel of an extension whose view type is one of `webviews`, as an extension gives it to
- * `createWebviewPanel`.
+ * The view type of `editor` as its extension registers it: the one it gives to `createWebviewPanel` for a webview panel of
+ * an extension, or to `registerCustomEditorProvider` for a custom editor. Nothing for any other editor.
  */
-export function isAgentDockWebview(editor: IAgentDockEditorDescriptor, webviews: readonly string[]): boolean {
-	if (editor.typeId !== WEBVIEW_EDITOR_TYPE_ID || !editor.viewType?.startsWith(EXTENSION_WEBVIEW_VIEW_TYPE_PREFIX)) {
-		return false;
+function getExtensionViewType(editor: IAgentDockEditorDescriptor): string | undefined {
+	if (editor.typeId === WEBVIEW_EDITOR_TYPE_ID && editor.viewType?.startsWith(EXTENSION_WEBVIEW_VIEW_TYPE_PREFIX)) {
+		return editor.viewType.substring(EXTENSION_WEBVIEW_VIEW_TYPE_PREFIX.length);
 	}
 
-	return webviews.includes(editor.viewType.substring(EXTENSION_WEBVIEW_VIEW_TYPE_PREFIX.length));
+	if (editor.typeId === CUSTOM_EDITOR_TYPE_ID) {
+		return editor.viewType;
+	}
+
+	return undefined;
+}
+
+/**
+ * Whether `editor` is a webview panel or a custom editor of an extension whose view type is one of `webviews`, as the
+ * extension registers it.
+ */
+export function isAgentDockWebview(editor: IAgentDockEditorDescriptor, webviews: readonly string[]): boolean {
+	const viewType = getExtensionViewType(editor);
+	return !!viewType && webviews.includes(viewType);
 }
 
 /** Whether `editor` may stay in the Agent Dock: a terminal, or one of the `webviews` panels. */

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
-import { isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
+import { sep } from '../../../../../base/common/path.js';
+import { basename, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { CLAUDE_CODE_WEBVIEW_VIEW_TYPE, IAgentDockEditorDescriptor, isAgentDockWebview, TERMINAL_EDITOR_TYPE_ID } from './agentDock.js';
+import { CLAUDE_CODE_WEBVIEW_VIEW_TYPE, CODEX_CUSTOM_EDITOR_VIEW_TYPE, IAgentDockEditorDescriptor, isAgentDockWebview, TERMINAL_EDITOR_TYPE_ID } from './agentDock.js';
 
 /** The tabs of the Agent Dock that take dropped files. */
 export const enum AgentDockDropTargetKind {
@@ -15,6 +16,8 @@ export const enum AgentDockDropTargetKind {
 	Terminal = 'terminal',
 	/** Takes an @-mention of each file, inserted into the chat input. */
 	ClaudeCode = 'claudeCode',
+	/** Takes each file as context of the message being written. */
+	Codex = 'codex',
 }
 
 /** What a dropped file goes into when `editor` is the active tab of a group of the dock, if anything. */
@@ -29,6 +32,10 @@ export function getAgentDockDropTargetKind(editor: IAgentDockEditorDescriptor | 
 
 	if (isAgentDockWebview(editor, [CLAUDE_CODE_WEBVIEW_VIEW_TYPE])) {
 		return AgentDockDropTargetKind.ClaudeCode;
+	}
+
+	if (isAgentDockWebview(editor, [CODEX_CUSTOM_EDITOR_VIEW_TYPE])) {
+		return AgentDockDropTargetKind.Codex;
 	}
 
 	return undefined;
@@ -274,4 +281,35 @@ export function createClaudeCodeInsertAtMentionMessage(text: string): IClaudeCod
 			request: { type: 'insert_at_mention', text },
 		},
 	};
+}
+
+/**
+ * The message the Codex extension posts to a conversation for its "Add File to Codex Chat" and "Add to Codex Chat"
+ * commands. The message is private to the extension: this is its shape in version 26.1120.50957.
+ */
+export interface ICodexAddContextFileMessage {
+	readonly type: 'add-context-file';
+	readonly file: {
+		readonly label: string;
+		readonly path: string;
+		readonly fsPath: string;
+		readonly startLine?: number;
+		readonly endLine?: number;
+	};
+}
+
+/** What {@link createCodexAddContextFileMessage} adds: a folder, or the lines of a file, from 1. */
+export type CodexContextTarget =
+	| { readonly kind: 'file' }
+	| { readonly kind: 'folder' }
+	| { readonly kind: 'lines'; readonly startLineNumber: number; readonly endLineNumber: number };
+
+/**
+ * The message that adds `resource` to the context of the message being written in a Codex conversation, as `target`
+ * says. Codex tells a folder by the separator its path ends with.
+ */
+export function createCodexAddContextFileMessage(resource: URI, target: CodexContextTarget): ICodexAddContextFileMessage {
+	const path = target.kind === 'folder' && !resource.fsPath.endsWith(sep) ? `${resource.fsPath}${sep}` : resource.fsPath;
+	const file = { label: basename(resource), path, fsPath: path };
+	return { type: 'add-context-file', file: target.kind === 'lines' ? { ...file, startLine: target.startLineNumber, endLine: target.endLineNumber } : file };
 }

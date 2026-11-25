@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { sep } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TERMINAL_EDITOR_TYPE_ID, WEBVIEW_EDITOR_TYPE_ID } from '../../../common/agentDock/agentDock.js';
-import { AgentDockDropTargetKind, createAgentDockSelection, createClaudeCodeInsertAtMentionMessage, getAgentDockDropTargetKind, getAgentDockMention, getAgentDockRelativePath, getAgentDockSelectionMention, getAgentDockTerminalPath, IAgentDockDrag, IAgentDockSelection, isAgentDockFileDrag, locateAgentDockSelection, normalizeAgentDockDropResources, parseAgentDockSelection, serializeAgentDockSelection } from '../../../common/agentDock/agentDockDrop.js';
+import { CUSTOM_EDITOR_TYPE_ID, TERMINAL_EDITOR_TYPE_ID, WEBVIEW_EDITOR_TYPE_ID } from '../../../common/agentDock/agentDock.js';
+import { AgentDockDropTargetKind, createAgentDockSelection, createClaudeCodeInsertAtMentionMessage, createCodexAddContextFileMessage, getAgentDockDropTargetKind, getAgentDockMention, getAgentDockRelativePath, getAgentDockSelectionMention, getAgentDockTerminalPath, IAgentDockDrag, IAgentDockSelection, isAgentDockFileDrag, locateAgentDockSelection, normalizeAgentDockDropResources, parseAgentDockSelection, serializeAgentDockSelection } from '../../../common/agentDock/agentDockDrop.js';
 
 suite('Agent Dock Drop', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('takes files into terminals and Claude Code only', () => {
+	test('takes files into terminals, Claude Code and Codex only', () => {
 		assert.deepStrictEqual([
 			getAgentDockDropTargetKind({ typeId: TERMINAL_EDITOR_TYPE_ID }),
 			getAgentDockDropTargetKind({ typeId: WEBVIEW_EDITOR_TYPE_ID, viewType: 'mainThreadWebview-claudeVSCodePanel' }),
+			getAgentDockDropTargetKind({ typeId: CUSTOM_EDITOR_TYPE_ID, viewType: 'chatgpt.conversationEditor' }),
 			getAgentDockDropTargetKind({ typeId: WEBVIEW_EDITOR_TYPE_ID, viewType: 'mainThreadWebview-otherAgentPanel' }),
 			getAgentDockDropTargetKind({ typeId: 'workbench.editors.files.fileEditorInput' }),
 			getAgentDockDropTargetKind(undefined),
-		], ['terminal', 'claudeCode', undefined, undefined, undefined]);
+		], ['terminal', 'claudeCode', 'codex', undefined, undefined, undefined]);
 	});
 
 	test('takes drags of files and selections, but not of groups, terminals or tabs of the dock', () => {
@@ -165,5 +167,19 @@ suite('Agent Dock Drop', () => {
 			type: 'from-extension',
 			message: { type: 'request', channelId: '', requestId: '', request: { type: 'insert_at_mention', text: '@src/a.ts' } },
 		});
+	});
+
+	test('adds a file, its lines or a folder to Codex with the message of Codex\'s own commands', () => {
+		const file = URI.file('/repo/src/a.ts');
+		const folder = URI.file('/repo/src');
+		assert.deepStrictEqual([
+			createCodexAddContextFileMessage(file, { kind: 'file' }),
+			createCodexAddContextFileMessage(file, { kind: 'lines', startLineNumber: 3, endLineNumber: 5 }),
+			createCodexAddContextFileMessage(folder, { kind: 'folder' }),
+		], [
+			{ type: 'add-context-file', file: { label: 'a.ts', path: file.fsPath, fsPath: file.fsPath } },
+			{ type: 'add-context-file', file: { label: 'a.ts', path: file.fsPath, fsPath: file.fsPath, startLine: 3, endLine: 5 } },
+			{ type: 'add-context-file', file: { label: 'src', path: `${folder.fsPath}${sep}`, fsPath: `${folder.fsPath}${sep}` } },
+		]);
 	});
 });

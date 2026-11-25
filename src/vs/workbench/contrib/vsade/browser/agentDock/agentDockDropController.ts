@@ -45,8 +45,8 @@ const OVERLAY_TIMEOUT = 500;
 
 /**
  * Drops files, such as from the Explorer, the Source Control view or editor tabs, into the tab of the dock under the
- * pointer, without a key held: a terminal gets their paths typed in, and Claude Code an @-mention of each in its chat
- * input. The selection of an editor, dragged by its badge (`AgentDockSelectionBadge`), goes in as an @-mention of its
+ * pointer, without a key held: a terminal gets their paths typed in, Claude Code an @-mention of each in its chat
+ * input, and Codex each as context of the message being written. The selection of an editor, dragged by its badge (`AgentDockSelectionBadge`), goes in as an @-mention of its
  * lines. Groups, terminals and the dock's own tabs still move and split groups as they would without it.
  *
  * The workbench stands down for such drags as the groups of the dock register as inputs that take them. The dock takes
@@ -160,7 +160,7 @@ export class AgentDockDropController extends Disposable {
 				return undefined; // over the tabs, which keep their own handling
 			}
 
-			if (kind === AgentDockDropTargetKind.ClaudeCode && editor instanceof WebviewInput && !editor.isDisposed() && editor.webview.container.contains(element)) {
+			if (kind && kind !== AgentDockDropTargetKind.Terminal && editor instanceof WebviewInput && !editor.isDisposed() && editor.webview.container.contains(element)) {
 				return { group, kind, overTerminal: false };
 			}
 		}
