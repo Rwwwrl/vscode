@@ -19,7 +19,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { TerminalEditorInput } from '../../../terminal/browser/terminalEditorInput.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { AgentDockSettingId, AgentDockTerminalSelectionDrop } from '../../common/agentDock/agentDock.js';
-import { AgentDockDropTargetKind, createClaudeCodeInsertAtMentionMessage, getAgentDockDropTargetKind, getAgentDockMention, getAgentDockRelativePath, getAgentDockSelectionMention, getAgentDockTerminalPath, IAgentDockSelection, locateAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import { AgentDockDropTargetKind, createClaudeCodeInsertAtMentionMessage, createCodexAddContextFileMessage, getAgentDockDropTargetKind, getAgentDockMention, getAgentDockRelativePath, getAgentDockSelectionMention, getAgentDockTerminalPath, IAgentDockSelection, ICodexAddContextFileMessage, locateAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
 import { describeAgentDockEditor, IAgentDockService } from './agentDockService.js';
 
 export const IAgentDockInsertService = createDecorator<IAgentDockInsertService>('vsadeAgentDockInsertService');
@@ -30,8 +30,8 @@ export type AgentDockInsertPayload =
 	| { readonly kind: 'selection'; readonly selection: IAgentDockSelection };
 
 /**
- * Inserts references to files and to selected lines into the tabs of the Agent Dock: a terminal gets them typed in, and
- * Claude Code an @-mention of each in its chat input.
+ * Inserts references to files and to selected lines into the tabs of the Agent Dock: a terminal gets them typed in,
+ * Claude Code an @-mention of each in its chat input, and Codex each as context of the message being written.
  */
 export interface IAgentDockInsertService {
 	readonly _serviceBrand: undefined;
@@ -40,8 +40,8 @@ export interface IAgentDockInsertService {
 	insert(group: IEditorGroup, payload: AgentDockInsertPayload): Promise<void>;
 
 	/**
-	 * Inserts `payload` into the tab of the dock that was active last among those that take it, a terminal or Claude
-	 * Code. The dock shows first; without such a tab, a new Claude Code conversation opens and takes it.
+	 * Inserts `payload` into the tab of the dock that was active last among those that take it, a terminal or an agent.
+	 * The dock shows first; without such a tab, a new Claude Code conversation opens and takes it.
 	 */
 	insertIntoLastActive(payload: AgentDockInsertPayload): Promise<void>;
 }
@@ -91,6 +91,12 @@ export class AgentDockInsertService implements IAgentDockInsertService {
 			} else {
 				await this.insertIntoClaudeCode(editor, payload.resources);
 			}
+		} else if (kind === AgentDockDropTargetKind.Codex && editor instanceof WebviewInput) {
+			if (payload.kind === 'selection') {
+				await this.insertSelectionIntoCodex(editor, payload.selection);
+			} else {
+				await this.insertIntoCodex(editor, payload.resources);
+			}
 		}
 	}
 
@@ -103,7 +109,7 @@ export class AgentDockInsertService implements IAgentDockInsertService {
 		}
 	}
 
-	/** The most recently active group of the dock whose active tab takes references, a terminal or Claude Code. */
+	/** The most recently active group of the dock whose active tab takes references, a terminal or an agent. */
 	private findLastActiveGroup(): IEditorGroup | undefined {
 		return this.agentDockService.getLastActiveGroup(editor => !!getAgentDockDropTargetKind(describeAgentDockEditor(editor)));
 	}
@@ -222,8 +228,43 @@ export class AgentDockInsertService implements IAgentDockInsertService {
 		await this.postMention(editor, mention, path);
 	}
 
+	/** Adds each file to the context of the message being written, as Codex's own "Add File to Codex Chat" command does. */
+	private async insertIntoCodex(editor: WebviewInput, resources: readonly URI[]): Promise<void> {
+		for (const resource of resources) {
+			const isFolder = await this.isFolder(resource);
+			if (!await this.postCodexMessage(editor, createCodexAddContextFileMessage(resource, { kind: isFolder ? 'folder' : 'file' }), resource)) {
+				return;
+			}
+		}
+	}
+
+	/** Adds the selected lines to the context of the message being written, as Codex's own "Add to Codex Chat" command does. */
+	private async insertSelectionIntoCodex(editor: WebviewInput, selection: IAgentDockSelection): Promise<void> {
+		const range = await this.locateSelection(selection);
+		if (range) {
+			await this.postCodexMessage(editor, createCodexAddContextFileMessage(selection.resource, { kind: 'lines', ...range }), selection.resource);
+		}
+	}
+
+	private async isFolder(resource: URI): Promise<boolean> {
+		try {
+			return (await this.fileService.stat(resource)).isDirectory;
+		} catch {
+			return false; // not on disk: what it is is up to Codex
+		}
+	}
+
+	private async postCodexMessage(editor: WebviewInput, message: ICodexAddContextFileMessage, resource: URI): Promise<boolean> {
+		if (await editor.webview.postMessage(message)) {
+			return true;
+		}
+
+		this.notificationService.error(localize('agentDock.codexContextFailed', "Could not add {0} to Codex.", resource.fsPath));
+		return false;
+	}
+
 	/**
-	 * The lines of the file on disk that a reference to `selection` points at, which Claude Code reads: they can differ
+	 * The lines of the file on disk that a reference to `selection` points at, which the agent reads: they can differ
 	 * from those of the editor, such as of the staged version of a file or of a file with unsaved changes. Nothing, with a
 	 * warning, when the selected lines are not in the file on disk.
 	 */

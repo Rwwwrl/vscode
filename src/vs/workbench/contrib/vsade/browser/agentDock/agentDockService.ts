@@ -19,11 +19,12 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { editorGroupToColumn } from '../../../../services/editor/common/editorGroupColumn.js';
 import { GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { IEditorsChangeEvent, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
-import { AGENT_DOCK_VIEW_ID, AgentDockGroupContext, AgentDockSettingId, CLAUDE_CODE_OPEN_EDITOR_COMMAND_ID, CLAUDE_CODE_WEBVIEW_VIEW_TYPE, IAgentDockEditorDescriptor, isAgentDockEditor, isAgentDockWebview } from '../../common/agentDock/agentDock.js';
+import { AGENT_DOCK_VIEW_ID, AgentDockGroupContext, AgentDockSettingId, CLAUDE_CODE_OPEN_EDITOR_COMMAND_ID, CODEX_CUSTOM_EDITOR_VIEW_TYPE, createCodexNewConversationResource, IAgentDockEditorDescriptor, isAgentDockEditor, isAgentDockWebview } from '../../common/agentDock/agentDock.js';
 
 export const IAgentDockService = createDecorator<IAgentDockService>('vsadeAgentDockService');
 
@@ -35,8 +36,8 @@ export interface IAgentDockPart {
 
 /**
  * The Agent Dock: an editor part in a view that holds only terminals and the webview panels of agents, such as Claude
- * Code, as tabs. Its groups stay locked, so other editors open in the editor area; one that lands there all the same,
- * such as by a drop, moves to the editor area.
+ * Code and Codex, as tabs. Its groups stay locked, so other editors open in the editor area; one that lands there all
+ * the same, such as by a drop, moves to the editor area.
  */
 export interface IAgentDockService {
 	readonly _serviceBrand: undefined;
@@ -60,13 +61,16 @@ export interface IAgentDockService {
 	reveal(focus: boolean): Promise<IEditorGroup | undefined>;
 
 	/**
-	 * Hides the dock when it shows. Otherwise shows and focuses it, with a new Claude Code conversation when it has
-	 * none.
+	 * Hides the dock when it shows. Otherwise shows and focuses it, with a new Claude Code conversation when it has no
+	 * agent.
 	 */
 	toggle(): Promise<void>;
 
 	/** Opens a new Claude Code conversation in the dock. */
 	openClaudeCode(): Promise<void>;
+
+	/** Opens a new Codex conversation in the dock. */
+	openCodex(): Promise<void>;
 
 	/**
 	 * The group of the dock that was active last among those with a tab, or among those whose active tab `accepts`
@@ -113,6 +117,7 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 	constructor(
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -184,7 +189,7 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 	async toggle(): Promise<void> {
 		if (!this.viewsService.isViewVisible(AGENT_DOCK_VIEW_ID)) {
 			await this.reveal(true);
-			if (!this.hasClaudeCode()) {
+			if (!this.hasAgent()) {
 				await this.openClaudeCode();
 			}
 			return;
@@ -225,6 +230,23 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 		}
 	}
 
+	async openCodex(): Promise<void> {
+		const group = await this.reveal(false);
+		if (!group) {
+			return;
+		}
+
+		// What the "New Codex Agent" command of the extension opens, but in the dock's active group: the command takes no
+		// group, and opens in the editor area
+		const resource = createCodexNewConversationResource();
+		if (!this.editorResolverService.getEditors(resource).some(editor => editor.id === CODEX_CUSTOM_EDITOR_VIEW_TYPE)) {
+			this.notificationService.error(localize('agentDock.codexMissing', "Could not open Codex. Make sure the Codex extension is installed and enabled."));
+			return;
+		}
+
+		await this.editorService.openEditor({ resource, options: { override: CODEX_CUSTOM_EDITOR_VIEW_TYPE, pinned: true } }, group);
+	}
+
 	getLastActiveGroup(accepts?: (editor: EditorInput) => boolean): IEditorGroup | undefined {
 		return this.getPart().part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => {
 			const editor = group.activeEditor;
@@ -249,8 +271,9 @@ export class AgentDockService extends Disposable implements IAgentDockService {
 		return isAgentDockEditor(describeAgentDockEditor(editor), this.webviews);
 	}
 
-	private hasClaudeCode(): boolean {
-		return !!this.part?.groups.some(group => group.editors.some(editor => isAgentDockWebview(describeAgentDockEditor(editor), [CLAUDE_CODE_WEBVIEW_VIEW_TYPE])));
+	private hasAgent(): boolean {
+		const webviews = this.webviews;
+		return !!this.part?.groups.some(group => group.editors.some(editor => isAgentDockWebview(describeAgentDockEditor(editor), webviews)));
 	}
 
 	/** The group of the editor area that editors leaving the dock go to: the most recently active unlocked one. */

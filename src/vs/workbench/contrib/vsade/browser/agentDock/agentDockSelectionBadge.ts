@@ -91,7 +91,7 @@ export class AgentDockSelectionBadge extends Disposable implements IEditorContri
 		append(this.badge, $('span.vsade-agent-dock-selection-badge-label', undefined, localize('agentDock.selectionBadge', "Drag to Agent")));
 
 		this._register(this.hoverService.setupDelayedHover(this.domNode, {
-			content: localize('agentDock.selectionBadgeHover', "Drag onto a terminal or Claude Code in the Agent Dock to insert a reference to the selected lines"),
+			content: localize('agentDock.selectionBadgeHover', "Drag onto a terminal, Claude Code or Codex in the Agent Dock to insert a reference to the selected lines"),
 			style: HoverStyle.Pointer,
 		}));
 

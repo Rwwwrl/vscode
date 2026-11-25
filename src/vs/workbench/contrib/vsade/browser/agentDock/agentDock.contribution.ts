@@ -27,9 +27,10 @@ import { editorGroupToColumn } from '../../../../services/editor/common/editorGr
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockActiveContext, AgentDockActiveEditorAreaGroupLastContext, AgentDockAvailableContext, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
+import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockActiveContext, AgentDockActiveEditorAreaGroupLastContext, AgentDockAvailableContext, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE, CODEX_CUSTOM_EDITOR_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
 import { IAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
 import { AgentDockInsertService, IAgentDockInsertService } from './agentDockInsertService.js';
+import { AgentDockOpenWithContribution } from './agentDockOpenWith.js';
 import { AgentDockMarkdownPreviewFocusTracker, isAgentDockMarkdownPreview, requestAgentDockPreviewSelection } from './agentDockPreviewSelection.js';
 import { AgentDockSelectionBadge, getAgentDockEditorSelection } from './agentDockSelectionBadge.js';
 import { AgentDockService, IAgentDockService } from './agentDockService.js';
@@ -68,10 +69,11 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViewWelcomeContent(AGENT_DOCK_VIEW_ID, {
 	content: localize(
-		{ key: 'agentDock.welcome', comment: ['{0} and {1} are command ids of links; do not translate them'] },
-		"Terminals and Claude Code conversations open here as tabs. Files always open in the editor area.\n[New Terminal](command:{0})\n[New Claude Code](command:{1})",
+		{ key: 'agentDock.welcome', comment: ['{0}, {1} and {2} are command ids of links; do not translate them'] },
+		"Terminals, Claude Code and Codex conversations open here as tabs. Files always open in the editor area.\n[New Terminal](command:{0})\n[New Claude Code](command:{1})\n[New Codex](command:{2})",
 		AgentDockCommandId.NewTerminal,
 		AgentDockCommandId.NewClaudeCode,
+		AgentDockCommandId.NewCodex,
 	),
 });
 
@@ -87,8 +89,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[AgentDockSettingId.Webviews]: {
 			type: 'array',
 			items: { type: 'string' },
-			default: [CLAUDE_CODE_WEBVIEW_VIEW_TYPE],
-			markdownDescription: localize('agentDock.webviews', "The webview panels of extensions, by their view type, that the Agent Dock holds besides terminals. Any other editor that lands in the Agent Dock moves to the editor area."),
+			default: [CLAUDE_CODE_WEBVIEW_VIEW_TYPE, CODEX_CUSTOM_EDITOR_VIEW_TYPE],
+			markdownDescription: localize('agentDock.webviews', "The webview panels and custom editors of extensions, by their view type, that the Agent Dock holds besides terminals. Any other editor that lands in the Agent Dock moves to the editor area."),
 		},
 		[AgentDockSettingId.CaptureWebviews]: {
 			type: 'boolean',
@@ -104,7 +106,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('agentDock.selectionBadge.off', "Never show the badge."),
 			],
 			default: AgentDockSelectionBadgeMode.Mouse,
-			markdownDescription: localize('agentDock.selectionBadgeSetting', "Controls when a badge shows next to the selection of a file in an editor. Dragging the badge onto a terminal or Claude Code in the Agent Dock inserts a reference to the selected lines."),
+			markdownDescription: localize('agentDock.selectionBadgeSetting', "Controls when a badge shows next to the selection of a file in an editor. Dragging the badge onto a terminal, Claude Code or Codex in the Agent Dock inserts a reference to the selected lines."),
 		},
 		[AgentDockSettingId.TerminalSelectionDrop]: {
 			type: 'string',
@@ -233,8 +235,37 @@ class NewClaudeCodeInAgentDockAction extends Action2 {
 	}
 }
 
+class NewCodexInAgentDockAction extends Action2 {
+	constructor() {
+		super({
+			id: AgentDockCommandId.NewCodex,
+			title: localize2('agentDock.newCodex', "New Codex in Agent Dock"),
+			category: Categories.View,
+			icon: Codicon.openai,
+			f1: true,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', AGENT_DOCK_VIEW_ID),
+				group: 'navigation',
+				order: 3,
+			}, {
+				// The tab bar of the dock, after New Terminal: the Codex extension's own button there opens its sidebar,
+				// which takes the place of the dock
+				id: MenuId.EditorTitle,
+				when: AgentDockGroupContext,
+				group: 'navigation',
+				order: -1,
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IAgentDockService).openCodex();
+	}
+}
+
 /**
- * Inserts a reference to the selected lines into the tab of the dock that was active last, a terminal or Claude Code, as a
+ * Inserts a reference to the selected lines into the tab of the dock that was active last, a terminal or an agent, as a
  * drag of the selection's badge onto it does: the lines of the focused editor, or the source lines of the blocks
  * selected in a focused Markdown preview; else of the active one.
  */
@@ -284,6 +315,7 @@ registerAction2(FocusAgentDockAction);
 registerAction2(FocusEditorAreaAction);
 registerAction2(NewTerminalInAgentDockAction);
 registerAction2(NewClaudeCodeInAgentDockAction);
+registerAction2(NewCodexInAgentDockAction);
 registerAction2(InsertSelectionIntoAgentDockAction);
 
 //#endregion
@@ -321,4 +353,5 @@ class AgentDockContribution extends Disposable implements IWorkbenchContribution
 }
 
 registerWorkbenchContribution2(AgentDockContribution.ID, AgentDockContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentDockOpenWithContribution.ID, AgentDockOpenWithContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentDockMarkdownPreviewFocusTracker.ID, AgentDockMarkdownPreviewFocusTracker, WorkbenchPhase.AfterRestored);
