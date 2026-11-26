@@ -8,6 +8,7 @@ import { sep } from '../../../../../base/common/path.js';
 import { basename, isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
+import { parseGitResource } from '../gitResource.js';
 import { CLAUDE_CODE_WEBVIEW_VIEW_TYPE, CODEX_CUSTOM_EDITOR_VIEW_TYPE, IAgentDockEditorDescriptor, isAgentDockWebview, TERMINAL_EDITOR_TYPE_ID } from './agentDock.js';
 
 /** The tabs of the Agent Dock that take dropped files. */
@@ -96,19 +97,7 @@ function toFile(resource: URI): URI | undefined {
 		return resource.with({ query: '', fragment: '' }); // a selection, such as of a dragged editor
 	}
 
-	if (resource.scheme === Schemas.git) {
-		// The git extension keeps the path of the file in the query: its path can carry a suffix
-		try {
-			const { path } = JSON.parse(resource.query) as { path?: unknown };
-			if (typeof path === 'string' && path) {
-				return URI.file(path);
-			}
-		} catch {
-			// not a resource of the git extension
-		}
-	}
-
-	return undefined;
+	return parseGitResource(resource)?.file;
 }
 
 /** A workspace folder, as {@link getAgentDockRelativePath} needs it. */
