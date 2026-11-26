@@ -1,0 +1,152 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vsade-multibuffer {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+	background: var(--vscode-editor-background);
+
+	.vsade-multibuffer-header {
+		display: flex;
+		flex: 0 0 auto;
+		gap: var(--vscode-spacing-size80);
+		align-items: center;
+		box-sizing: border-box;
+		padding: 0 var(--vscode-spacing-size80);
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-sideBarSectionHeader-border);
+
+		&:not(.search) .vsade-multibuffer-search {
+			display: none;
+		}
+	}
+
+	.vsade-multibuffer-actions {
+		flex: 0 0 auto;
+	}
+
+	.vsade-multibuffer-search {
+		flex: 0 1 600px;
+		min-width: 0;
+	}
+
+	.vsade-multibuffer-summary {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		color: var(--vscode-descriptionForeground);
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.vsade-multibuffer-body {
+		position: relative;
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+}
+
+.vsade-multibuffer-files {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+}
+
+.vsade-multibuffer-file {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+
+	.vsade-multibuffer-file-header {
+		z-index: 1000;
+		display: flex;
+		flex: 0 0 auto;
+		align-items: center;
+		box-sizing: border-box;
+		padding: 0 var(--vscode-spacing-size60);
+		color: var(--vscode-foreground);
+		/* Darker than the excerpts and their separators, so that each file stands apart from the one above it */
+		background: color-mix(in srgb, var(--vscode-multiDiffEditor-headerBackground) 70%, black);
+		border-top: var(--vscode-strokeThickness) solid var(--vscode-multiDiffEditor-border);
+		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-multiDiffEditor-border);
+
+		&.shadow {
+			box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px;
+		}
+	}
+
+	.vsade-multibuffer-file-collapse {
+		flex: 0 0 auto;
+		margin-right: var(--vscode-spacing-size40);
+		cursor: pointer;
+
+		a {
+			display: block;
+		}
+	}
+
+	.vsade-multibuffer-file-label {
+		flex: 0 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		line-height: 22px;
+	}
+
+	.vsade-multibuffer-file-count {
+		flex: 1 1 auto;
+		margin-left: var(--vscode-spacing-size80);
+		overflow: hidden;
+		color: var(--vscode-descriptionForeground);
+		white-space: nowrap;
+	}
+
+	.vsade-multibuffer-file-actions {
+		flex: 0 0 auto;
+	}
+
+	.vsade-multibuffer-file-message {
+		padding: var(--vscode-spacing-size80);
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.vsade-multibuffer-file-editor {
+		flex: 1 1 auto;
+	}
+}
+
+.monaco-editor .vsade-multibuffer-separator {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	width: 100%;
+	color: var(--vscode-diffEditor-unchangedRegionForeground);
+	background: var(--vscode-diffEditor-unchangedRegionBackground);
+
+	.vsade-multibuffer-separator-actions {
+		flex: 0 0 auto;
+		padding: 0 var(--vscode-spacing-size40);
+	}
+
+	.vsade-multibuffer-separator-label {
+		flex: 1 1 auto;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		cursor: pointer;
+
+		&:hover {
+			text-decoration: underline;
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
+}
