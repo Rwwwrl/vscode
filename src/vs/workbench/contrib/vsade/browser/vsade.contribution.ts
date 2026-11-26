@@ -6,3 +6,4 @@
 // vsade fork features: one import per feature
 
 import './agentDock/agentDock.contribution.js';
+import './gitSnapshotLanguageFeatures/gitSnapshotLanguageFeatures.contribution.js';
