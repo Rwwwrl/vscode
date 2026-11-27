@@ -35,6 +35,7 @@ git log --oneline origin/sosov-fork..HEAD
 
 1. Confirm the work was validated with the `validate-change` skill. Reuse the earlier result if nothing changed since; if nothing was run, say so in the body rather than running broad checks now.
 2. Run `just fork-patches`. It lists every upstream-owned file the branch modifies and fails on changes without a `FORK:` marker. Fix missing markers before going on (see the `fork-feature` skill). Keep the list for the body.
+3. If the branch adds a feature or changes what the user sees of one, check that the `vsade-features` skill was updated in it; if not, update it before pushing.
 
 ## 3. Push
 

@@ -61,6 +61,7 @@ Fork skills live in `.agents/skills/` (`.claude/skills` is a symlink to it). Use
 
 | Skill | Use for |
 | --- | --- |
+| `vsade-features` | The fork's existing features (Agent Dock, multibuffer, ...), the names used for them, their parts, ids and files. Read it when a feature is named or past fork work is referenced. |
 | `fork-feature` | Deciding where a change goes and how to keep it isolated. First step of any feature. |
 | `workbench-contribution` | Implementing a core workbench feature: actions, menus, keybindings, settings, context keys, services, contributions, views. |
 | `upstream-guides` | Index of upstream's area-specific rules in `.github/instructions/` and `.github/skills/`, which Claude Code does not load on its own. Read the matching guides before editing an area. |
