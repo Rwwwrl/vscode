@@ -7,3 +7,4 @@
 
 import './agentDock/agentDock.contribution.js';
 import './gitSnapshotLanguageFeatures/gitSnapshotLanguageFeatures.contribution.js';
+import './multibuffer/multibuffer.contribution.js';
