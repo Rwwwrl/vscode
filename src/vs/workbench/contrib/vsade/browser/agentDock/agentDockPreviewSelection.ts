@@ -54,6 +54,15 @@ export function resolveAgentDockPreviewSelection(modelService: IModelService, bl
 
 /** Asks `preview` for its selection; nothing when nothing is selected, or the preview does not answer in time. */
 export async function requestAgentDockPreviewSelection(preview: WebviewInput, modelService: IModelService): Promise<IAgentDockSelection | undefined> {
+	const blocks = await requestAgentDockPreviewBlocks(preview);
+	return blocks ? resolveAgentDockPreviewSelection(modelService, blocks) : undefined;
+}
+
+/**
+ * Asks `preview` for the blocks of the source its selection spans; nothing when nothing is selected, or the preview does
+ * not answer in time.
+ */
+export async function requestAgentDockPreviewBlocks(preview: WebviewInput): Promise<IAgentDockPreviewBlocks | undefined> {
 	const requestId = requestIdPool++;
 	const answer = new DeferredPromise<IAgentDockPreviewBlocks | undefined>();
 
@@ -70,8 +79,7 @@ export async function requestAgentDockPreviewSelection(preview: WebviewInput, mo
 			return undefined;
 		}
 
-		const blocks = await raceTimeout(answer.p, SELECTION_REQUEST_TIMEOUT);
-		return blocks ? resolveAgentDockPreviewSelection(modelService, blocks) : undefined;
+		return await raceTimeout(answer.p, SELECTION_REQUEST_TIMEOUT);
 	} finally {
 		store.dispose();
 	}

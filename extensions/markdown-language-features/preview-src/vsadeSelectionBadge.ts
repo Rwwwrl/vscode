@@ -28,30 +28,52 @@ function getLine(element: Element): number {
 	return Number(element.getAttribute('data-line'));
 }
 
-/** The innermost block with a source line around `node`. */
-function getBlock(node: Node): Element | null {
+/**
+ * The block of `node`: the innermost one with a source line around it, else the last one before it. Content can sit
+ * outside of every block when HTML moves it there, such as a math block inside a paragraph, whose `<p>` closes the
+ * paragraph's; it belongs to the block before it. Blank text and elements around blocks belong to none.
+ */
+function getBlock(node: Node, blocks: readonly Element[]): Element | null {
 	const element = node instanceof Element ? node : node.parentElement;
-	return element?.closest('[data-line]') ?? null;
+	const block = element?.closest('[data-line]');
+	if (block) {
+		return block;
+	}
+
+	if (!node.textContent?.trim() || (node instanceof Element && node.querySelector('[data-line]'))) {
+		return null;
+	}
+
+	for (let i = blocks.length - 1; i >= 0; i--) {
+		if (blocks[i].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) {
+			return blocks[i];
+		}
+	}
+	return null;
 }
 
 function getSelectedBlocks(range: Range): SelectedBlocks | undefined {
 	const blocks = Array.from(document.querySelectorAll('[data-line]')).filter(element => !isNaN(getLine(element)));
 	const touched = blocks.filter(element => range.intersectsNode(element));
-	if (!touched.length) {
+	const touchedLines = touched.map(getLine);
+	const startBlock = getBlock(range.startContainer, blocks);
+	const endBlock = getBlock(range.endContainer, blocks);
+	if (!touchedLines.length && !startBlock && !endBlock) {
 		return undefined;
 	}
 
-	const startBlock = getBlock(range.startContainer);
-	const startLine = startBlock ? getLine(startBlock) : Math.min(...touched.map(getLine));
+	const startLine = startBlock ? getLine(startBlock) : touchedLines.length ? Math.min(...touchedLines) : getLine(endBlock!);
 
-	const endBlock = getBlock(range.endContainer);
 	let endBlockLine: number;
 	if (endBlock && range.endOffset === 0 && endBlock !== startBlock) {
 		// A selection of whole blocks, such as by a triple click, ends at the start of the block after them
-		const before = touched.map(getLine).filter(line => line < getLine(endBlock));
+		const before = touchedLines.filter(line => line < getLine(endBlock));
 		endBlockLine = before.length ? Math.max(...before) : getLine(endBlock);
+	} else if (endBlock) {
+		// A selection of a whole element, such as a table, ends in it after the blocks in it, such as its rows
+		endBlockLine = Math.max(getLine(endBlock), ...touched.filter(element => endBlock.contains(element)).map(getLine));
 	} else {
-		endBlockLine = endBlock ? getLine(endBlock) : Math.max(...touched.map(getLine));
+		endBlockLine = touchedLines.length ? Math.max(...touchedLines) : startLine;
 	}
 
 	endBlockLine = Math.max(startLine, endBlockLine);
