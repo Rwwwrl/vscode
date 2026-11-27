@@ -44,6 +44,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ResourceLabel } from '../../../../browser/labels.js';
 import { IMultibufferOpenFileContext, MultibufferCommandId, MultibufferDoubleClickBehaviour, MultibufferFileToolbarMenu, MultibufferSettingId } from '../../common/multibuffer/multibuffer.js';
@@ -139,6 +141,8 @@ export class MultibufferFileTemplate extends VirtualizedItemTemplate<Multibuffer
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -162,6 +166,10 @@ export class MultibufferFileTemplate extends VirtualizedItemTemplate<Multibuffer
 		this.isFocused = observableCodeEditor(this.editor).isFocused;
 
 		this.label = this._register(this.instantiationService.createInstance(ResourceLabel, this.elements.label, {}));
+		// The path of the label is relative to the workspace folders and formatted by the label service, which the label
+		// only follows for the name it computes itself
+		this._register(this.labelService.onDidChangeFormatters(() => this.renderLabel()));
+		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.renderLabel()));
 
 		this.collapseButton = this._register(new Button(this.elements.collapse, {}));
 		this._register(autorun(reader => {
@@ -229,7 +237,7 @@ export class MultibufferFileTemplate extends VirtualizedItemTemplate<Multibuffer
 
 	protected createBinding(item: MultibufferFileItem, context: IVirtualizedItemBindingContext): MultibufferFileBinding {
 		this.item.set(item, undefined);
-		this.label.element.setFile(item.resource);
+		this.renderLabel();
 		const count = item.matches.length;
 		this.elements.count.textContent = count === 1
 			? localize('multibuffer.oneMatch', "1 match")
@@ -237,6 +245,18 @@ export class MultibufferFileTemplate extends VirtualizedItemTemplate<Multibuffer
 		this.elements.message.textContent = '';
 		this.elements.message.style.display = 'none';
 		return this.instantiationService.createInstance(MultibufferFileBinding, item, this, context);
+	}
+
+	/**
+	 * Labels the bound file with its icon and its path relative to the workspace, in one piece rather than a name and a
+	 * dimmed folder, as a fuzzy file finder lists files.
+	 */
+	private renderLabel(): void {
+		const item = this.item.get();
+		if (!item) {
+			return;
+		}
+		this.label.element.setResource({ resource: item.resource, name: this.labelService.getUriLabel(item.resource, { relative: true }) });
 	}
 
 	/** Called by the binding of `item` once it released the editor. */
