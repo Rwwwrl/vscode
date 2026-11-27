@@ -13,6 +13,8 @@ import { ISlugifier, SlugBuilder } from './slugify';
 import { ITextDocument } from './types/textDocument';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
+// FORK: vsade math blocks keep their source line for the preview's selection (fork-owned vsadeSourceLines.ts)
+import { keepSourceLinesOfBlocks } from './vsadeSourceLines';
 
 /**
  * Adds begin line index to the output via the 'data-line' data attribute.
@@ -154,6 +156,8 @@ export class MarkdownItEngine implements IMdParser {
 				this.#addNamedHeaders(md);
 				this.#addLinkRenderer(md);
 				md.use(pluginSourceMap);
+				// FORK: vsade math blocks keep their source line, which math plugins drop
+				keepSourceLinesOfBlocks(md);
 				return md;
 			})();
 		}
