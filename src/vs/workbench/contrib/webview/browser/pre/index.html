@@ -5,7 +5,8 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-VY65u6y1DZWK8Cb4MlVpSVlMYcM338BRDVhygiwXLLg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		data-vsade="FORK: script hash recomputed for the vsade.webviewEditableFocus addition to the script below"
+		content="default-src 'none'; script-src 'sha256-Mn/taTnkGFLrzttTeUz7Zv3BfzZZtwsUL8CNIu9PzvI=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -650,9 +651,32 @@
 				metaKey: e.metaKey,
 				repeat: e.repeat,
 				isTrusted: e.isTrusted,
+				// FORK: vsade.webviewEditableFocus
+				vsadeEditable: vsadeIsEditableTarget(e),
 				keyEventToken
 			};
 			hostMessaging.postMessage(channel, data);
+		}
+
+		// FORK: vsade.webviewEditableFocus, whether a key event was typed into an editable element
+		const vsadeNonTextInputTypes = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit']);
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function vsadeIsEditableTarget(e) {
+			const target = /** @type {any} */ (e.composedPath()[0] ?? e.target);
+			if (!target || typeof target.tagName !== 'string') {
+				return false;
+			}
+			const tagName = target.tagName.toLowerCase();
+			if (tagName === 'textarea' || tagName === 'select') {
+				return true;
+			}
+			if (tagName === 'input') {
+				return !vsadeNonTextInputTypes.has(String(target.type).toLowerCase());
+			}
+			return !!target.isContentEditable || !!target.editContext;
 		}
 
 		/**
