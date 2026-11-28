@@ -18,6 +18,8 @@ type KeyEvent = {
 	readonly repeat: boolean;
 	readonly isTrusted: boolean;
 	readonly keyEventToken: string;
+	// FORK: vsade.webviewEditableFocus, whether the key was typed into an editable element of the webview
+	readonly vsadeEditable?: boolean;
 }
 
 type WebViewDragEvent = {

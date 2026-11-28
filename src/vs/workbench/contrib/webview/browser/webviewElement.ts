@@ -40,6 +40,8 @@ import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
+// FORK: vsade.webviewEditableFocus is set from the key events the webview forwards
+import { updateWebviewEditableFocus } from '../../vsade/common/webviewFocus/webviewFocus.js';
 
 interface WebviewContent {
 	readonly html: string;
@@ -779,6 +781,9 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		if (!this.shouldForwardKeyEvent(event) || !this.isActiveElement()) {
 			return;
 		}
+
+		// FORK: vsade.webviewEditableFocus must hold for this key before the keybinding service resolves it
+		updateWebviewEditableFocus(this._contextKeyService, event.vsadeEditable);
 
 		// Electron: workaround for https://github.com/electron/electron/issues/14258
 		// We have to detect keyboard events in the <webview> and dispatch them to our
