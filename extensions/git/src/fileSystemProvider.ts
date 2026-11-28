@@ -192,6 +192,11 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			const details = await repository.getObjectDetails(sanitizeRef(ref, path, submoduleOf, repository), path);
 			return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
 		} catch {
+			// FORK: a file unknown to git has an empty index version, so untracked files diff as all-added (see resolveChangeCommand)
+			if (ref === '~') {
+				return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
+			}
+
 			// Empty tree
 			if (ref === await repository.getEmptyTree()) {
 				this.logger.warn(`[GitFileSystemProvider][stat] Empty tree - ${uri.toString()}`);
@@ -248,6 +253,11 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		try {
 			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path);
 		} catch {
+			// FORK: a file unknown to git has an empty index version, so untracked files diff as all-added (see resolveChangeCommand)
+			if (ref === '~') {
+				return new Uint8Array(0);
+			}
+
 			// Empty tree
 			if (ref === await repository.getEmptyTree()) {
 				this.logger.warn(`[GitFileSystemProvider][readFile] Empty tree - ${uri.toString()}`);

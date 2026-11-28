@@ -534,6 +534,12 @@ class ResourceCommandResolver {
 			leftUri = resource.leftUri;
 		}
 
+		// FORK: untracked files open as a diff against an empty index version, so they render as all-added and can be staged by line;
+		// files of the media preview (IMAGE/VIDEO/AUDIO_PREVIEW_FILE_PATTERN) keep opening plain, since a preview cannot load an empty original
+		if (!leftUri && resource.type === Status.UNTRACKED && !/\.(jpe?g|jpe|png|bmp|gif|ico|webp|avif|svg|mp4|webm|mp3|wav|ogg|oga)$/i.test(resource.resourceUri.path)) {
+			leftUri = toGitUri(resource.resourceUri, '~');
+		}
+
 		const title = this.getTitle(resource);
 
 		if (!leftUri) {
