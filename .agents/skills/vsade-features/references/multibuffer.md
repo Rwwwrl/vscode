@@ -12,7 +12,7 @@ Paths below are relative to `src/vs/workbench/contrib/vsade/`.
 | file header | `.vsade-multibuffer-file-header`: collapse chevron, file icon + workspace-relative path (one `ResourceLabel` name, multi-root `folder • path`, outside the workspace `~/...`), "N matches", Open File / Open File to the Side (`vsade.multibuffer.fileToolbar`). Draggable like an editor tab. | `browser/multibuffer/multibufferFileTemplate.ts` (`renderLabel`, `createBinding`) |
 | excerpt | The `CodeEditorWidget` of one file with hidden areas outside its excerpts | `browser/multibuffer/multibufferFileTemplate.ts`, `common/multibuffer/multibufferExcerpts.ts` |
 | hidden lines row, "N hidden lines" | The separator view zone between excerpts, with expand up/down | `browser/multibuffer/multibufferFileTemplate.ts` (`.vsade-multibuffer-separator`) |
-| multibuffer Cmd+F, find widget | A `SimpleFindWidget` subclass that finds in the shown lines of all files; replaces the stock editor find, which is removed from the excerpts' contributions | `browser/multibuffer/multibufferFindWidget.ts`, `common/multibuffer/multibufferFind.ts` |
+| multibuffer Cmd+F, find widget | A `SimpleFindWidget` subclass that finds in the shown lines of all files; replaces the stock editor find, which is removed from the excerpts' contributions. Follows `editor.find.cursorMoveOnType`: when it is `false`, typing only highlights ("? of N") and Enter or the arrows move. | `browser/multibuffer/multibufferFindWidget.ts`, `common/multibuffer/multibufferFind.ts` |
 | match highlight | Decoration `vsade-multibuffer-match` on the search or reference matches; green by default so it differs from the Cmd+F matches, which use upstream's find decorations | `browser/multibuffer/multibufferColors.ts` |
 
 ## Commands
