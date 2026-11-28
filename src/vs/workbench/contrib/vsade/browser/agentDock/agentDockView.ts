@@ -25,7 +25,7 @@ import { IAgentDockService } from './agentDockService.js';
 import './media/agentDock.css';
 
 /** The class of the workbench part that the dock's editor part covers. */
-const HOST_CLASS = 'vsade-agent-dock-host';
+export const AGENT_DOCK_HOST_CLASS = 'vsade-agent-dock-host';
 
 /**
  * The view of the Agent Dock. While the dock has tabs, its editor part covers the whole workbench part the view is in,
@@ -64,14 +64,14 @@ export class AgentDockViewPane extends ViewPane {
 		// The part outlives the view: the view only shows it, on top of the workbench part it is in
 		const { part, element } = this.agentDockService.getPart();
 		const host = this.layoutService.getContainer(getWindow(container), this.getHostPart()) ?? container;
-		host.classList.add(HOST_CLASS);
+		host.classList.add(AGENT_DOCK_HOST_CLASS);
 		host.appendChild(element);
 		this.part = part;
 		this.partElement = element;
 		this.host = host;
 		this._register(toDisposable(() => {
 			element.remove();
-			host.classList.remove(HOST_CLASS);
+			host.classList.remove(AGENT_DOCK_HOST_CLASS);
 			part.setVisible(false);
 		}));
 

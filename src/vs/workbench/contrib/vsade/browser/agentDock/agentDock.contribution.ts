@@ -29,6 +29,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockActiveContext, AgentDockActiveEditorAreaGroupLastContext, AgentDockAvailableContext, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE, CODEX_CUSTOM_EDITOR_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
 import { IAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import './agentDockColors.js';
 import { AgentDockInsertService, IAgentDockInsertService } from './agentDockInsertService.js';
 import { AgentDockOpenWithContribution } from './agentDockOpenWith.js';
 import { AgentDockMarkdownPreviewFocusTracker, isAgentDockMarkdownPreview, requestAgentDockPreviewSelection } from './agentDockPreviewSelection.js';
