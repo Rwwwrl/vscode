@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from '../../../../../platform/theme/common/colors/editorColors.js';
+import { editorFindMatchHighlightBorder } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { registerColor } from '../../../../../platform/theme/common/colorUtils.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
 
 /**
- * The background of the matches a multibuffer shows excerpts around. It defaults to the other matches of a find, which
- * themes make light enough for the colors of the code to show through, as the search editor does.
+ * The background of the matches a multibuffer shows excerpts around. A green of its own rather than the matches of a
+ * find, so that the find in the multibuffer (Cmd+F), which paints its matches with the find colors, stands apart from
+ * them. Light enough for the colors of the code to show through.
  */
-const multibufferMatchHighlightBackground = registerColor('vsade.multibuffer.matchHighlightBackground', editorFindMatchHighlight, localize('multibufferMatchHighlightBackground', "Background color of the matches in a multibuffer, such as the references or the results of a search. The color must not be opaque so as not to hide the code under it."), true);
+const multibufferMatchHighlightBackground = registerColor('vsade.multibuffer.matchHighlightBackground', { dark: '#2EA04366', light: '#2EA04355', hcDark: null, hcLight: null }, localize('multibufferMatchHighlightBackground', "Background color of the matches in a multibuffer, such as the references or the results of a search. The color must not be opaque so as not to hide the code under it."), true);
 
 const multibufferMatchHighlightBorder = registerColor('vsade.multibuffer.matchHighlightBorder', editorFindMatchHighlightBorder, localize('multibufferMatchHighlightBorder', "Border color of the matches in a multibuffer, such as the references or the results of a search."));
 

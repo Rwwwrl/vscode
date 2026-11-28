@@ -96,3 +96,4 @@ Measured with `git log --format= --name-only -n 2000 | sort | uniq -c | sort -rn
 
 - Implementing rung (d): `workbench-contribution` skill. Rung (c): [references/built-in-extension.md](references/built-in-extension.md). `product.json`: [references/product-json.md](references/product-json.md).
 - Validating: `validate-change` skill. Then `just fork-patches`, then the PR body list of upstream files.
+- Recording: add or update the feature in the `vsade-features` skill in the same pull request.

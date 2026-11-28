@@ -80,11 +80,14 @@ class MultibufferFindController extends Disposable {
 		return this.findModel.currentIndex;
 	}
 
-	/** Finds `query`, and moves to its first match after the cursor of the file with the focus. */
-	async setQuery(query: IMultibufferFindQuery | undefined): Promise<void> {
+	/**
+	 * Finds `query`, and moves to its first match after the cursor of the file with the focus, unless `reveal` is false:
+	 * then the matches are only highlighted, with none of them current.
+	 */
+	async setQuery(query: IMultibufferFindQuery | undefined, reveal = true): Promise<void> {
 		this.query = query?.searchString ? query : undefined;
 		this.findModel.reset();
-		this.revealOnUpdate = true;
+		this.revealOnUpdate = reveal;
 		this.updateScheduler.cancel();
 		await this.update();
 	}
@@ -217,7 +220,7 @@ export class MultibufferFindWidget extends SimpleFindWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IModelService modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService,
@@ -275,7 +278,9 @@ export class MultibufferFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onInputChanged(): boolean {
-		this.findFirst();
+		// Typing moves to the first match only as `editor.find.cursorMoveOnType` lets the find of an editor do; otherwise it
+		// highlights the matches, and Enter or the arrows move to them
+		void this.controller.setQuery(this.readQuery(), this.configurationService.getValue<boolean>('editor.find.cursorMoveOnType') !== false);
 		return this.controller.count > 0;
 	}
 

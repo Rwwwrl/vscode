@@ -29,6 +29,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { AGENT_DOCK_CONTAINER_ID, AGENT_DOCK_VIEW_ID, AgentDockActiveContext, AgentDockActiveEditorAreaGroupLastContext, AgentDockAvailableContext, AgentDockCommandId, AgentDockGroupContext, AgentDockSelectionBadgeMode, AgentDockSettingId, AgentDockTerminalSelectionDrop, CLAUDE_CODE_WEBVIEW_VIEW_TYPE, CODEX_CUSTOM_EDITOR_VIEW_TYPE } from '../../common/agentDock/agentDock.js';
 import { IAgentDockSelection } from '../../common/agentDock/agentDockDrop.js';
+import './agentDockColors.js';
 import { AgentDockInsertService, IAgentDockInsertService } from './agentDockInsertService.js';
 import { AgentDockOpenWithContribution } from './agentDockOpenWith.js';
 import { AgentDockMarkdownPreviewFocusTracker, isAgentDockMarkdownPreview, requestAgentDockPreviewSelection } from './agentDockPreviewSelection.js';
@@ -193,7 +194,7 @@ class NewTerminalInAgentDockAction extends Action2 {
 				id: MenuId.EditorTitle,
 				when: AgentDockGroupContext,
 				group: 'navigation',
-				order: -2,
+				order: -3,
 			}],
 		});
 	}
@@ -220,13 +221,19 @@ class NewClaudeCodeInAgentDockAction extends Action2 {
 			category: Categories.View,
 			icon: Codicon.claude,
 			f1: true,
-			// The dock's tab bar has Claude Code's own Open button instead
-			menu: {
+			menu: [{
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', AGENT_DOCK_VIEW_ID),
 				group: 'navigation',
 				order: 2,
-			},
+			}, {
+				// The tab bar of the dock, between New Terminal and New Codex: the Claude Code extension's own button shows
+				// in every editor title, so the dock carries a button of its own that opens a new conversation in the dock
+				id: MenuId.EditorTitle,
+				when: AgentDockGroupContext,
+				group: 'navigation',
+				order: -2,
+			}],
 		});
 	}
 
@@ -249,7 +256,7 @@ class NewCodexInAgentDockAction extends Action2 {
 				group: 'navigation',
 				order: 3,
 			}, {
-				// The tab bar of the dock, after New Terminal: the Codex extension's own button there opens its sidebar,
+				// The tab bar of the dock, after New Claude Code: the Codex extension's own button there opens its sidebar,
 				// which takes the place of the dock
 				id: MenuId.EditorTitle,
 				when: AgentDockGroupContext,
