@@ -50,6 +50,13 @@ build: && install
     echo "Built in $((SECONDS - started))s"
     echo "App: $PWD/$app"
     echo "DMG: $PWD/$dmg"
+    # Open Remote - SSH only connects to a server from the app's own commit, so every app build makes one.
+    ./scripts/vsade/build-server.sh arm64
+
+# Build the Linux server for Open Remote - SSH from this commit into .build/vsade/ (needs Docker); `just build` builds arm64
+[group('build')]
+build-server arch='arm64':
+    ./scripts/vsade/build-server.sh {{ quote(arch) }}
 
 # Delete the build outputs: out/, extension outputs, .build/ (Electron, packaged app, dmg)
 [group('build')]
