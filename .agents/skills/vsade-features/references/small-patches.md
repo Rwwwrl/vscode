@@ -5,6 +5,7 @@ Changes too small to be a feature of their own.
 | Name | What | Where | Pull request |
 |---|---|---|---|
 | Narrow diff overview ruler | The red/green change lanes at the right edge of a side-by-side diff are 5px each (upstream 15), 10px in total | `FORK:` hunk on `ONE_OVERVIEW_WIDTH` in `src/vs/editor/browser/widget/diffEditor/features/overviewRulerFeature.ts` | #9 |
+| Diff word highlight | Occurrence highlights (cursor on a variable, double-clicked word) on added or removed lines of a diff are filled with the editor background before the highlight tint, so they read as in a normal editor instead of vanishing into the green or red | `src/vs/workbench/contrib/vsade/browser/diffWordHighlight/` (CSS only, zero upstream files) | |
 | App icon | The VS Code logo on a black background | `resources/darwin/code.icns` (binary, ledger line in `scripts/vsade/fork-patches.txt`); `just install` refreshes the icon cache | #7, #10 |
 | Rebrand | App `vsade`, CLI `ade`, bundle id `dev.vsade.app`, URL protocol `vsade`, Open VSX gallery | `product.json` (ledger line) | #1 |
 | Gallery hygiene | `build/hygiene.ts` rejects only a Microsoft Marketplace gallery in `product.json` | `FORK:` hunk in `build/hygiene.ts` | #1 |
