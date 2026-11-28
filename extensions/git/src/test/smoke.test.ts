@@ -294,4 +294,45 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	// FORK: vsade untracked file diff: an untracked file opens as an all-added diff whose lines can be staged one range at a time
+	test('opens untracked file as a diff and stages selected ranges', async function () {
+		const name = 'untracked-partial.txt';
+		const untracked = uri(name);
+		fs.writeFileSync(untracked.fsPath, 'one\ntwo\n');
+		await repository.status();
+
+		try {
+			assert.strictEqual((await workspace.fs.readFile(git.toGitUri(untracked, '~'))).byteLength, 0);
+
+			await commands.executeCommand('git.openChange', untracked);
+			const tab = window.tabGroups.activeTabGroup.activeTab;
+			assert(tab?.input instanceof TabInputTextDiff);
+			assert.strictEqual(tab.input.original.scheme, 'git');
+
+			const editor = window.activeTextEditor!;
+			for (let attempt = 0; attempt < 100 && !editor.diffInformation?.some(diff => diff.changes.length > 0); attempt++) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+			}
+
+			// The cursor on the first line selects only that line
+			await commands.executeCommand('cursorTop');
+			await commands.executeCommand('git.stageSelectedRanges');
+
+			assert.deepStrictEqual({
+				staged: cp.execSync(`git show :${name}`, { cwd, encoding: 'utf8' }),
+				indexChanges: repository.state.indexChanges.map(change => [path.basename(change.uri.fsPath), change.status]),
+				workingTreeChanges: repository.state.workingTreeChanges.map(change => [path.basename(change.uri.fsPath), change.status]),
+			}, {
+				staged: 'one\n',
+				indexChanges: [[name, Status.INDEX_ADDED]],
+				workingTreeChanges: [[name, Status.MODIFIED]],
+			});
+		} finally {
+			await commands.executeCommand('workbench.action.closeAllEditors');
+			cp.execSync(`git rm -q -f --cached --ignore-unmatch ${name}`, { cwd });
+			fs.unlinkSync(untracked.fsPath);
+			await repository.status();
+		}
+	});
 });
