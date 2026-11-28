@@ -18,7 +18,7 @@ All core code is under `src/vs/workbench/contrib/vsade/` (`browser/<feature>/`, 
 | Webview editable focus | `vsade.webviewEditableFocus`, whichkey space in Claude/Codex | A context key that tells whether a key forwarded by a webview (Claude Code, Codex, any extension webview) was typed into a text input, so a `space` leader binding works on agent panels but not while typing | `common/webviewFocus/` + `FORK:` hunks in `contrib/webview/browser/` | #17 | [webview-editable-focus.md](references/webview-editable-focus.md) |
 | Untracked file diff | new file diff, stage lines of a new file | Clicking an untracked file in Source Control opens it as an all-added diff, so Stage Selected Ranges and the gutter staging buttons work on new files | `extensions/git/src/` (`FORK:` hunks only) | #18 | [untracked-file-diff.md](references/untracked-file-diff.md) |
 | Open VSX signature verification | extension signature, vsce-sign replacement | Verifies Open VSX Ed25519 signatures so gallery installs work with `extensions.verifySignature` on | `src/vs/platform/vsade/node/` | #8 | [open-vsx-signature-verification.md](references/open-vsx-signature-verification.md) |
-| Small patches | diff ruler, app icon, rebrand, justfile | Narrow diff overview ruler, app icon, `product.json` identity, build and install recipes | various | #1, #7, #9, #10 | [small-patches.md](references/small-patches.md) |
+| Small patches | diff ruler, app icon, rebrand, justfile | Narrow diff overview ruler, diff word highlight contrast, app icon, `product.json` identity, build and install recipes | various | #1, #7, #9, #10 | [small-patches.md](references/small-patches.md) |
 
 ## Keep This Skill Current
 

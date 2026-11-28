@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Occurrence highlights on changed lines of a diff.
+ *
+ * The decorations overlay renders whole-line decorations (the diff's `line-insert` and
+ * `line-delete`) before range decorations on each line, so a sibling selector reaches exactly
+ * the highlights that sit on an added or removed line. Upstream paints them as a translucent
+ * tint over the diff colour, which leaves almost no contrast. Here the box is first filled with
+ * the editor background and then tinted, so it looks the same as in a normal editor. Themes that
+ * leave a highlight colour unset (high contrast) make the declaration invalid, which keeps the
+ * upstream look.
+ */
+
+.monaco-editor .cdr.line-insert ~ .cdr.wordHighlight,
+.monaco-editor .cdr.line-delete ~ .cdr.wordHighlight {
+	background:
+		linear-gradient(var(--vscode-editor-wordHighlightBackground), var(--vscode-editor-wordHighlightBackground)),
+		var(--vscode-editor-background);
+}
+
+.monaco-editor .cdr.line-insert ~ .cdr.wordHighlightStrong,
+.monaco-editor .cdr.line-delete ~ .cdr.wordHighlightStrong {
+	background:
+		linear-gradient(var(--vscode-editor-wordHighlightStrongBackground), var(--vscode-editor-wordHighlightStrongBackground)),
+		var(--vscode-editor-background);
+}
+
+.monaco-editor .cdr.line-insert ~ .cdr.wordHighlightText,
+.monaco-editor .cdr.line-delete ~ .cdr.wordHighlightText {
+	background:
+		linear-gradient(var(--vscode-editor-wordHighlightTextBackground), var(--vscode-editor-wordHighlightTextBackground)),
+		var(--vscode-editor-background);
+}
+
+.monaco-editor .focused .cdr.line-insert ~ .cdr.selectionHighlight,
+.monaco-editor .focused .cdr.line-delete ~ .cdr.selectionHighlight {
+	background:
+		linear-gradient(var(--vscode-editor-selectionHighlightBackground), var(--vscode-editor-selectionHighlightBackground)),
+		var(--vscode-editor-background);
+}
